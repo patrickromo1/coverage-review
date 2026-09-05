@@ -60,6 +60,11 @@ it('discovers changes between commits independently of working-tree edits', asyn
   expect(patch).not.toContain('uncommitted');
   expect((await provider.compare(head, head)).files).toEqual([]);
 });
+it('ignores Git replacement objects when resolving reviewed commits', async () => {
+  await git('replace', head, base);
+  const comparison = await new LocalGitDiff(root).compare(base, head);
+  expect(comparison.files).toContainEqual({ path: 'modify.ts', status: 'modified' });
+});
 it('returns deletion and rename patches and treats pathspecs literally', async () => {
   const provider = new LocalGitDiff(root);
   expect(await provider.getFileDiff(base, head, 'remove.ts')).toContain('-removed');

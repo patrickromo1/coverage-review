@@ -1,6 +1,17 @@
-/** Repository-relative paths use forward slashes. Reads are of the working tree. */
+export type SourceRead =
+  | { readonly status: 'available'; readonly content: string }
+  | { readonly status: 'missing' | 'binary' | 'truncated' | 'unsupported'; readonly reason: string };
+
+export interface RepositoryFileListing {
+  readonly status: 'available' | 'truncated';
+  readonly paths: readonly string[];
+  readonly reason?: string;
+}
+
+/** Commit-addressed repository reads. Implementations must never consult the working tree. */
 export interface Repository {
-  readSource(path: string): Promise<string>;
+  readSource(commitSha: string, path: string): Promise<SourceRead>;
+  listFiles(commitSha: string): Promise<RepositoryFileListing>;
 }
 
 export function assertRepositoryPath(path: string): void {

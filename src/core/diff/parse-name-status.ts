@@ -1,4 +1,5 @@
 import type { ChangedFile, ChangeStatus } from './diff-provider.js';
+import { assertRepositoryPath } from '../repository/repository.js';
 
 /** Parses git diff --name-status -z; never split paths on whitespace. */
 export function parseNameStatus(output: string): ChangedFile[] {
@@ -13,9 +14,11 @@ export function parseNameStatus(output: string): ChangedFile[] {
     const code = fields[i++];
     const path = fields[i++];
     if (!code || !path) throw new Error('Malformed Git name-status output');
+    assertRepositoryPath(path);
     if (/^R\d{1,3}$/.test(code) && Number(code.slice(1)) <= 100) {
       const destination = fields[i++];
       if (!destination) throw new Error('Missing rename destination');
+      assertRepositoryPath(destination);
       files.push({ status: 'renamed', path: destination, previousPath: path });
     } else {
       const status = statuses[code];

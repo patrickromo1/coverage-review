@@ -16,7 +16,7 @@ export class LocalGitDiff implements DiffProvider {
   private async git(args: string[]): Promise<string> {
     // Inherited Git overrides must not redirect reads or inject configuration.
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-    const { stdout } = await execute('git', ['--literal-pathspecs', '-c', 'diff.renameLimit=1000', ...args], {
+    const { stdout } = await execute('git', ['--no-replace-objects', '--literal-pathspecs', '-c', 'diff.renameLimit=1000', ...args], {
       cwd: this.root,
       encoding: 'utf8',
       maxBuffer: 16 * 1024 * 1024,
