@@ -49,8 +49,17 @@ Use Node.js, TypeScript, pnpm, Vitest, and Zod. Keep TypeScript strict. Add test
 
 Use `pnpm dev --help` for CLI usage, `pnpm build` to compile, `pnpm typecheck` for strict checks, `pnpm lint` for ESLint, and `pnpm test` for Vitest unit and integration tests. `pnpm test:watch` starts watch mode. Eval tooling is not implemented yet.
 
+Milestone 2 evidence can be inspected with:
+
+```sh
+pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --evidence
+pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --evidence --lcov /path/to/lcov.info --coverage-commit <full-head-sha>
+```
+
+Evidence reads Git objects at the reviewed commits, never working-tree source. Test discovery is convention- and static-relative-import-based and must retain uncertainty; it does not prove behavioral coverage. LCOV is external input and has unverifiable freshness unless commit metadata is supplied. Do not resolve module aliases or repository configuration by executing repository code. Missing, unsupported, stale, and truncated evidence must remain explicit in structured output.
+
 ## Completion Checks
 
-Before completing a task, run the project’s type check, lint, and unit tests using `pnpm typecheck`, `pnpm lint`, and `pnpm test`. If a check is unavailable, state that explicitly rather than claiming it passed.
+Before completing a task, run the project’s type check, lint, unit/integration tests, and production build using `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`. If a check is unavailable, state that explicitly rather than claiming it passed.
 
 Fix failures caused by the change. Explain meaningful architectural decisions and validation limitations.

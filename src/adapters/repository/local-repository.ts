@@ -1,37 +1,81 @@
-import { open, realpath } from 'node:fs/promises';
-import { isAbsolute, relative, resolve } from 'node:path';
-import { assertRepositoryPath, type Repository } from '../../core/repository/repository.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { assertRepositoryPath, type Repository, type RepositoryFileListing, type SourceRead } from '../../core/repository/repository.js';
 
-/** Intended for a stable local checkout; not a sandbox for concurrent hostile mutations. */
+const execute = promisify(execFile);
+
+/** Reads blobs from Git objects, so uncommitted working-tree changes cannot affect evidence. */
 export class LocalRepository implements Repository {
-  constructor(private readonly root: string, private readonly maxBytes = 1_048_576) {
+  constructor(
+    private readonly root: string,
+    private readonly maxBytes = 1_048_576,
+    private readonly maxFiles = 20_000,
+    private readonly maxTreeBytes = 16 * 1024 * 1024,
+  ) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('maxBytes must be a positive integer');
+    if (!Number.isSafeInteger(maxFiles) || maxFiles <= 0) throw new Error('maxFiles must be a positive integer');
+    if (!Number.isSafeInteger(maxTreeBytes) || maxTreeBytes <= 0) throw new Error('maxTreeBytes must be a positive integer');
   }
 
-  async readSource(path: string): Promise<string> {
+  private async git(args: string[], maxBuffer = this.maxBytes + 1): Promise<Buffer> {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    const { stdout } = await execute('git', ['--no-replace-objects', '--literal-pathspecs', ...args], {
+      cwd: this.root, encoding: 'buffer', maxBuffer, timeout: 30_000,
+      env: { ...env, GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', LC_ALL: 'C' },
+    });
+    return stdout;
+  }
+
+  private assertCommit(commitSha: string): void {
+    if (!/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(commitSha)) {
+      throw new Error('Expected a full 40- or 64-character Git commit SHA');
+    }
+  }
+
+  async readSource(commitSha: string, path: string): Promise<SourceRead> {
+    this.assertCommit(commitSha);
     assertRepositoryPath(path);
-    const root = await realpath(this.root);
-    const target = await realpath(resolve(root, path));
-    const inside = relative(root, target);
-    if (inside === '..' || inside.startsWith('../') || isAbsolute(inside)) {
-      throw new Error('Source path escapes repository');
-    }
-    const file = await open(target, 'r');
     try {
-      const stat = await file.stat();
-      if (!stat.isFile()) throw new Error('Source path must be a regular file');
-      if (stat.size > this.maxBytes) throw new Error('Source exceeds read limit');
-      const buffer = Buffer.alloc(this.maxBytes + 1);
-      let total = 0;
-      while (total < buffer.length) {
-        const { bytesRead } = await file.read(buffer, total, buffer.length - total, null);
-        if (!bytesRead) break;
-        total += bytesRead;
+      const entry = (await this.git(['ls-tree', '-z', commitSha, '--', path], 4096)).toString('utf8');
+      if (!entry) return { status: 'missing', reason: 'Path does not exist at commit' };
+      const match = /^(\d{6}) ([^ ]+) [a-fA-F0-9]+\t([^\0]+)\0$/.exec(entry);
+      if (!match || match[3] !== path) return { status: 'unsupported', reason: 'Git returned an unexpected tree entry' };
+      if (match[1] === '120000') return { status: 'unsupported', reason: 'Symbolic-link sources are not followed' };
+      if (match[2] !== 'blob') return { status: 'unsupported', reason: `Git object is ${match[2]}, not a blob` };
+      const size = Number((await this.git(['cat-file', '-s', `${commitSha}:${path}`], 1024)).toString('utf8').trim());
+      if (!Number.isSafeInteger(size)) return { status: 'unsupported', reason: 'Git returned an invalid blob size' };
+      if (size > this.maxBytes) return { status: 'truncated', reason: `Source exceeds ${this.maxBytes} byte read limit` };
+      const content = await this.git(['show', `${commitSha}:${path}`], this.maxBytes + 1);
+      if (content.includes(0)) return { status: 'binary', reason: 'Source blob contains NUL bytes' };
+      return { status: 'available', content: content.toString('utf8') };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/does not exist|exists on disk, but not in|Not a valid object name|invalid object name/i.test(message)) {
+        return { status: 'missing', reason: 'Path does not exist at commit' };
       }
-      if (total > this.maxBytes) throw new Error('Source exceeds read limit');
-      return buffer.subarray(0, total).toString('utf8');
-    } finally {
-      await file.close();
+      throw error;
     }
+  }
+
+  async listFiles(commitSha: string): Promise<RepositoryFileListing> {
+    this.assertCommit(commitSha);
+    let output: Buffer;
+    try {
+      output = await this.git(['ls-tree', '-r', '-z', '--name-only', commitSha], this.maxTreeBytes);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/maxBuffer|too large|truncat/i.test(message)) {
+        return { status: 'truncated', paths: [], reason: `Git tree listing exceeds ${this.maxTreeBytes} byte limit` };
+      }
+      throw error;
+    }
+    const fields = output.toString('utf8').split('\0');
+    if (fields.at(-1) !== '') throw new Error('Truncated Git tree output');
+    fields.pop();
+    const paths = fields.slice(0, this.maxFiles);
+    for (const path of paths) assertRepositoryPath(path);
+    return fields.length > this.maxFiles
+      ? { status: 'truncated', paths, reason: `Repository contains more than ${this.maxFiles} files` }
+      : { status: 'available', paths };
   }
 }
