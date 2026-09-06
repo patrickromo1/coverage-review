@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { executeOpenAISdk } from '../../src/agent/openai/sdk-execution.js';
 import { OpenAIConfigSchema, type SdkExecutionRequest } from '../../src/agent/openai/openai-review-agent.js';
+import { AgentFailure } from '../../src/agent/failure.js';
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 const output = { schemaVersion: '1', summary: 'SDK response', analysisStatus: 'partial', reviewedFiles: [], limitations: ['Limited'], findings: [] };
@@ -50,6 +51,16 @@ it('enforces max turns and does not reexecute the same SDK tool call ID', async 
   const input = request();
   await expect(executeOpenAISdk(input)).rejects.toMatchObject({ code: 'budget-exhausted' });
   expect(fetch).toHaveBeenCalledTimes(2); expect(input.inspect).toHaveBeenCalledTimes(1);
+});
+it.each(['budget-exhausted', 'invalid-proposal'] as const)('preserves wrapped SDK tool failure category %s', async (code) => {
+  vi.stubEnv('OPENAI_API_KEY', 'FAKE_TEST_KEY');
+  const fetch = vi.fn(async () => response([{ type: 'function_call', id: 'fc_test', call_id: 'call_test', name: 'inspect_evidence',
+    arguments: JSON.stringify({ kind: 'source', file: 'a.ts', side: 'head', testPath: null, startLine: 1, lineCount: 10 }), status: 'completed' }]));
+  vi.stubGlobal('fetch', fetch);
+  const input = request();
+  input.inspect = vi.fn(async () => { throw new AgentFailure(code); });
+  await expect(executeOpenAISdk(input)).rejects.toMatchObject({ code, message: `Review agent failed: ${code}.` });
+  expect(fetch).toHaveBeenCalledTimes(1); expect(input.inspect).toHaveBeenCalledTimes(1);
 });
 it('does no IO for absent credentials or pre-aborted work', async () => {
   vi.stubEnv('OPENAI_API_KEY', ''); const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);

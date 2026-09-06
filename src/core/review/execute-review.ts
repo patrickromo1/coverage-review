@@ -41,18 +41,31 @@ export async function executeReview(
   let toolSession: ReturnType<typeof createEvidenceTools> | undefined;
   let stage: 'evidence' | 'agent' = 'evidence';
   try {
-    const evidence = await withinDeadline(() => collectEvidence(baseSha, headSha, dependencies), deadline - Date.now(), controller);
-    result.scope = { ...evidence.comparison, resolved: true, changedFiles: evidence.files.map((file) => file.path), reviewedFiles: [] };
-    result.evidenceReferences = evidenceReferences(evidence);
-    result.limitations = evidenceLimitations(evidence);
-    await trace.emit('evidence', started, result.limitations.length ? 'partial' : 'ok', { files: evidence.files.length });
+    const evidenceStarted = Date.now();
+    let evidence;
+    try {
+      evidence = await withinDeadline(() => collectEvidence(baseSha, headSha, dependencies), deadline - Date.now(), controller);
+      result.scope = { ...evidence.comparison, resolved: true, changedFiles: evidence.files.map((file) => file.path), reviewedFiles: [] };
+      result.evidenceReferences = evidenceReferences(evidence);
+      result.limitations = evidenceLimitations(evidence);
+      await trace.emit('evidence', evidenceStarted, result.limitations.length ? 'partial' : 'ok', { files: evidence.files.length });
+    } catch (error) {
+      await trace.emit('evidence', evidenceStarted, 'error', { files: evidence?.files.length ?? 0 });
+      throw error;
+    }
     stage = 'agent';
     toolSession = createEvidenceTools(evidence, result.evidenceReferences, dependencies.repository, controller.signal, agent.evidenceLimits);
     const agentStarted = Date.now();
-    const raw = await withinDeadline(() => agent.propose({
-      evidence: structuredClone(evidence), references: structuredClone(result.evidenceReferences), limits: { ...limits }, signal: controller.signal, tools: toolSession!.tools,
-    }), deadline - Date.now(), controller);
-    await trace.emit('agent', agentStarted, toolSession.stats().incomplete ? 'partial' : 'ok', { toolCalls: toolSession.stats().calls, readBytes: toolSession.stats().bytes });
+    let raw: unknown;
+    try {
+      raw = await withinDeadline(() => agent.propose({
+        evidence: structuredClone(evidence), references: structuredClone(result.evidenceReferences), limits: { ...limits }, signal: controller.signal, tools: toolSession!.tools,
+      }), deadline - Date.now(), controller);
+      await trace.emit('agent', agentStarted, toolSession.stats().incomplete ? 'partial' : 'ok', { toolCalls: toolSession.stats().calls, readBytes: toolSession.stats().bytes });
+    } catch (error) {
+      await trace.emit('agent', agentStarted, 'error', { toolCalls: toolSession.stats().calls, readBytes: toolSession.stats().bytes });
+      throw error;
+    }
     if (agent.mode === 'provider' && !toolSession.stats().inspectionComplete) result.limitations.push({ code: 'agent-incomplete', message: 'Provider did not fully inspect changed-file evidence, source, and every discovered candidate test.' });
     if (toolSession.stats().incomplete) result.limitations.push({ code: 'evidence-incomplete', message: 'Tool inspection was unavailable, truncated, invalid, or exhausted a budget.' });
     const parsed = proposalSchema(limits).safeParse(raw);

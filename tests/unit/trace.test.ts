@@ -30,3 +30,17 @@ it('records allowlisted provider usage without prompts, repository paths, or raw
   expect(JSON.stringify(exportSpan.mock.calls)).not.toMatch(/PRIVATE|a\.ts|openai|source/i);
   expect(exportSpan.mock.calls.find(([span]) => span.name === 'provider')?.[0].attributes.inputTokens).toBe(2);
 });
+it('emits error spans for failed evidence and agent stages', async () => {
+  const evidenceSpans: TraceSpan[] = [];
+  const evidenceDependencies = dependencies();
+  evidenceDependencies.diff.compare = async () => { throw new Error('PRIVATE_EVIDENCE_FAILURE'); };
+  await executeReview('base', 'head', evidenceDependencies, { mode: 'scripted', propose: async () => { throw new Error('not reached'); } }, {},
+    new ReviewTrace({ exportSpan: (span) => { evidenceSpans.push(span); } }));
+  expect(evidenceSpans.map(({ name, status }) => [name, status])).toEqual([['evidence', 'error'], ['review', 'error']]);
+
+  const agentSpans: TraceSpan[] = [];
+  await executeReview('base', 'head', dependencies(), { mode: 'scripted', propose: async () => { throw new Error('PRIVATE_AGENT_FAILURE'); } }, {},
+    new ReviewTrace({ exportSpan: (span) => { agentSpans.push(span); } }));
+  expect(agentSpans.map(({ name, status }) => [name, status])).toEqual([['evidence', 'ok'], ['agent', 'error'], ['review', 'error']]);
+  expect(JSON.stringify([...evidenceSpans, ...agentSpans])).not.toContain('PRIVATE');
+});

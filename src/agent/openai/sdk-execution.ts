@@ -1,4 +1,4 @@
-import { Agent, Runner, OpenAIProvider, tool, setTracingDisabled, setTraceProcessors, setSensitiveDataLoggingEnabled, MaxTurnsExceededError, ModelBehaviorError, ModelRefusalError } from '@openai/agents';
+import { Agent, Runner, OpenAIProvider, tool, setTracingDisabled, setTraceProcessors, setSensitiveDataLoggingEnabled, MaxTurnsExceededError, ModelBehaviorError, ModelRefusalError, ToolCallError } from '@openai/agents';
 import OpenAI from 'openai';
 import { AgentFailure } from '../failure.js';
 import { EvidenceToolArgsSchema, EvidenceToolResultSchema } from '../../core/review/evidence-tools.js';
@@ -39,6 +39,7 @@ export const executeOpenAISdk: SdkExecute = async (request) => {
   } catch (error) {
     if (error instanceof AgentFailure) throw error;
     if (request.signal.aborted) throw new AgentFailure('timeout');
+    if (error instanceof ToolCallError && error.error instanceof AgentFailure) throw error.error;
     if (error instanceof MaxTurnsExceededError) throw new AgentFailure('budget-exhausted');
     if (error instanceof ModelRefusalError) throw new AgentFailure('refusal');
     if (error instanceof ModelBehaviorError) throw new AgentFailure('invalid-proposal');
