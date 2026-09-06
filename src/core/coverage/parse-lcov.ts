@@ -27,6 +27,7 @@ function natural(value: string, label: string, positive = false): number {
 
 /** Strictly parses deterministic line and branch records; unsupported LCOV summary records are ignored. */
 export function parseLcov(content: string, repositoryRoot: string): FileCoverage[] {
+  if (Buffer.byteLength(content) > 16 * 1024 * 1024 || content.split('\n').length > 200_000) throw new Error('LCOV parser budget exhausted');
   const files: FileCoverage[] = [];
   let path: string | undefined;
   let lines: LineCoverage[] = [];
@@ -53,11 +54,12 @@ export function parseLcov(content: string, repositoryRoot: string): FileCoverage
       const [lineValue, block, branch, taken] = fields as [string, string, string, string];
       const line = natural(lineValue, 'branch line', true);
       const hits = taken === '-' ? null : natural(taken, 'branch hits');
-      branches.push({ line, block, branch, hits, covered: hits !== null && hits > 0 });
+      branches.push({ line, block, branch, hits, covered: hits === null ? null : hits > 0 });
     } else if (raw === 'end_of_record') {
       if (!path) throw new Error('LCOV end_of_record appears before SF');
       if (seen.has(path)) throw new Error(`Duplicate LCOV source record after normalization: ${path}`);
       seen.add(path);
+      if (new Set(lines.map((line) => line.line)).size !== lines.length || new Set(branches.map((branch) => JSON.stringify([branch.line, branch.block, branch.branch]))).size !== branches.length) throw new Error('Duplicate LCOV measurement');
       files.push({
         path, lines: lines.sort((a, b) => a.line - b.line),
         branches: branches.sort((a, b) => a.line - b.line || a.block.localeCompare(b.block) || a.branch.localeCompare(b.branch)),

@@ -118,5 +118,42 @@
     },
     "coverage": "matching",
     "sourceTruncated": false
+  },
+  {
+    "id": "python-boundary",
+    "version": "1",
+    "sourcePath": "src/value.py",
+    "before": "def value(n): return n * 2\n",
+    "after": "def value(n): return 1 if n == 0 else n * 2\n",
+    "tests": {
+      "tests/unit/test_value.py": "from src.value import value\ndef test_value(): assert value(2) == 4\n"
+    },
+    "coverage": "matching",
+    "sourceTruncated": false
+  },
+  {
+    "id": "python-relative-uncertainty",
+    "version": "1",
+    "sourcePath": "src/value.py",
+    "before": "def value(n): return n * 2\n",
+    "after": "def value(n): return n * 3\n",
+    "tests": {
+      "tests/unit/test_value.py": "from .value import value\ndef test_value(): assert value(2) == 6\n"
+    },
+    "coverage": "matching",
+    "sourceTruncated": false
+  },
+  {
+    "id": "local-freshness",
+    "mode": "unstaged",
+    "version": "1",
+    "sourcePath": "src/value.ts",
+    "before": "export const value = 1;\n",
+    "after": "export const value = 2;\n",
+    "tests": {
+      "tests/unit/value.test.ts": "import { value } from '../../src/value';\nit('value', () => expect(value).toBe(2));\n"
+    },
+    "coverage": "matching",
+    "sourceTruncated": false
   }
 ]

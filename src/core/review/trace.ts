@@ -4,9 +4,10 @@ import { z } from 'zod';
 const count = z.number().int().nonnegative();
 export const TraceSpanSchema = z.strictObject({
   traceId: z.string().uuid(), spanId: z.string().uuid(),
-  name: z.enum(['evidence', 'agent', 'review', 'provider']),
+  name: z.enum(['evidence', 'agent', 'review', 'provider', 'capture', 'collection', 'discovery', 'coverage', 'validation', 'publishing']),
   durationMs: z.number().nonnegative(), status: z.enum(['ok', 'partial', 'error']),
   attributes: z.strictObject({
+    filesScanned: count.optional(), reads: count.optional(), reservedBytes: count.optional(), cacheHits: count.optional(), truncated: count.optional(), pages: count.optional(),
     files: count.optional(), findings: count.optional(), toolCalls: count.optional(), readBytes: count.optional(),
     inputTokens: count.optional(), outputTokens: count.optional(), requests: count.optional(),
   }),
@@ -16,6 +17,7 @@ export type TraceSpan = z.infer<typeof TraceSpanSchema>;
 export interface TraceOptions {
   exportSpan?: (span: TraceSpan) => void | Promise<void>;
   includeSensitiveContent?: boolean;
+  now?: () => number;
 }
 /** Allowlisted metadata, no SDK exporter. Export is bounded and non-fatal. */
 export class ReviewTrace {
@@ -26,7 +28,7 @@ export class ReviewTrace {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const span = TraceSpanSchema.parse({ traceId: this.traceId, spanId: randomUUID(), name,
-        durationMs: Math.max(0, Date.now() - start), status, attributes,
+        durationMs: Math.max(0, (this.options.now ?? Date.now)() - start), status, attributes,
         ...(this.options.includeSensitiveContent && sensitive ? { sensitive: sensitive.slice(0, 262_144) } : {}),
       });
       await Promise.race([Promise.resolve().then(() => this.options.exportSpan!(span)), new Promise<void>((resolve) => { timer = setTimeout(resolve, 100); })]);

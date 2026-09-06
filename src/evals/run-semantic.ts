@@ -58,7 +58,7 @@ export async function runSemanticSuite(suite: Suite, options: {
     let agent: ReviewAgent & { usage?: unknown };
     try { agent = options.mode === 'offline' ? scriptedSemanticAgent(suite.scripts[job.id]!) : options.createAgent!(); }
     catch { agent = { mode: 'provider', propose: async () => { throw new AgentFailure('provider-error'); } }; }
-    const result = await executeReview(baseSha, headSha, dependencies, agent, limits);
+    const result = await executeReview(baseSha, headSha, dependencies, agent, { ...limits, ...(fixture.mode ? { reviewMode: fixture.mode } : {}) });
     return { fixtureId: job.id, fixtureVersion: fixture.version, repeat: job.repeat,
       model: options.mode === 'offline' ? null : options.model, promptVersion: PROMPT_VERSION, configurationVersion: '1',
       policyVersion: result.provenance.policyVersion, usage: UsageSchema.safeParse(agent.usage).data ?? null,

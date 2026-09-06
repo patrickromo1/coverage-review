@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { EvidenceCollectorDependencies } from '../core/evidence/collect-evidence.js';
-import { TypeScriptTestDiscovery } from '../core/test-discovery/typescript-test-discovery.js';
+import { SupportedTestDiscovery } from '../core/test-discovery/supported-test-discovery.js';
 import { assertRepositoryPath } from '../core/repository/repository.js';
 
 export const SemanticFixtureSchema = z.strictObject({
+  mode: z.enum(['staged', 'unstaged']).optional(),
   id: z.string().regex(/^[a-z0-9-]+$/), version: z.literal('1'),
   sourcePath: z.string(), before: z.string().max(100_000), after: z.string().max(100_000),
   tests: z.record(z.string(), z.string().max(100_000)),
@@ -20,11 +21,12 @@ export function semanticDependencies(raw: SemanticFixture): { baseSha: string; h
   const before = { ...fixture.tests, [fixture.sourcePath]: fixture.before };
   const after = { ...fixture.tests, [fixture.sourcePath]: fixture.after };
   const hash = (value: unknown) => createHash('sha1').update(JSON.stringify(value)).digest('hex');
-  const baseSha = hash(before); const headSha = hash(after);
+  const baseSha = fixture.mode === 'unstaged' ? `local:${createHash('sha256').update(JSON.stringify(before)).digest('hex')}` : hash(before);
+  const headSha = fixture.mode ? `local:${createHash('sha256').update(JSON.stringify(after)).digest('hex')}` : hash(after);
   const lines = (value: string) => value.replace(/\n$/, '').split('\n');
   const oldLines = lines(fixture.before); const newLines = lines(fixture.after);
   const patch = `@@ -1,${oldLines.length} +1,${newLines.length} @@\n${oldLines.map((line) => `-${line}`).join('\n')}\n${newLines.map((line) => `+${line}`).join('\n')}\n`;
-  return { baseSha, headSha, dependencies: {
+  const dependencies: EvidenceCollectorDependencies = {
     diff: {
       compare: async (base, head) => {
         if (base !== baseSha || head !== headSha) throw new Error('Unknown fixture comparison');
@@ -49,10 +51,11 @@ export function semanticDependencies(raw: SemanticFixture): { baseSha: string; h
         return content === undefined ? { status: 'missing', reason: 'Not in fixture snapshot' } : { status: 'available', content };
       },
     },
-    testDiscovery: new TypeScriptTestDiscovery(),
+    testDiscovery: new SupportedTestDiscovery(),
     coverage: { getCoverage: async () => fixture.coverage === 'missing' ? { status: 'unavailable', reason: 'No fixture coverage' } : {
       status: 'available', provenance: { format: 'lcov', reportPath: 'fixture.lcov', commitSha: fixture.coverage === 'stale' ? baseSha : headSha, freshness: fixture.coverage },
       diagnostics: [], files: [{ path: fixture.sourcePath, lines: newLines.map((_line, index) => ({ line: index + 1, hits: 1, covered: true })), branches: [] }],
     } },
-  } };
+  };
+  return { baseSha, headSha, dependencies: fixture.mode ? { ...dependencies, captureLocal: async () => ({ baseSha, headSha, diff: dependencies.diff, repository: dependencies.repository }) } : dependencies };
 }

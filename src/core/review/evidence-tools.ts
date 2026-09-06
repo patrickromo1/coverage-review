@@ -22,7 +22,7 @@ export const EvidenceToolArgsSchema = z.strictObject({
 export const EvidenceToolResultSchema = z.strictObject({
   status: z.enum(['available', 'missing', 'binary', 'unsupported', 'truncated', 'unavailable']),
   content: z.string(),
-  references: z.array(z.string().regex(/^ev1:[a-f0-9]{64}$/)).max(4),
+  references: z.array(z.string().regex(/^ev[12]:[a-f0-9]{64}$/)).max(4),
 });
 export type EvidenceToolResult = z.infer<typeof EvidenceToolResultSchema>;
 export interface EvidenceTools { inspect(args: unknown): Promise<EvidenceToolResult> }
@@ -78,9 +78,9 @@ export function createEvidenceTools(evidence: CoverageEvidence, refs: readonly E
         ]).safeParse(read);
         if (!valid.success) { incomplete = true; throw new AgentFailure('invalid-proposal'); }
         status = valid.data.status;
-        content = valid.data.status === 'available' ? valid.data.content : `Committed evidence is ${status}.`;
+        content = valid.data.status === 'available' ? valid.data.content : `Snapshot evidence is ${status}.`;
         // Charge full blobs, including rereads, before slicing; concurrent calls share counters.
-        if (Buffer.byteLength(content) > limits.maxToolBytes) { status = 'truncated'; content = 'Committed source exceeds read limit.'; }
+        if (Buffer.byteLength(content) > limits.maxToolBytes) { status = 'truncated'; content = 'Snapshot source exceeds read limit.'; }
         if (bytes > limits.maxReadBytes) { incomplete = true; throw new AgentFailure('budget-exhausted'); }
         if (status === 'available') {
           const lines = content.split('\n');

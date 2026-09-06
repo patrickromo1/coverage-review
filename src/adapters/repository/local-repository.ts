@@ -60,11 +60,11 @@ export class LocalRepository implements Repository {
     }
   }
 
-  async listFiles(commitSha: string): Promise<RepositoryFileListing> {
+  async listFiles(commitSha: string, signal?: AbortSignal): Promise<RepositoryFileListing> {
     this.assertCommit(commitSha);
     let output: Buffer;
     try {
-      output = await this.git(['ls-tree', '-r', '-z', '--name-only', commitSha], this.maxTreeBytes);
+      output = await this.git(['ls-tree', '-r', '-z', '--name-only', commitSha], this.maxTreeBytes, signal);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (/maxBuffer|too large|truncat/i.test(message)) {

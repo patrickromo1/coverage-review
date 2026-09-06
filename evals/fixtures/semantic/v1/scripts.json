@@ -48,5 +48,16 @@
       "level": "unit",
       "lowerLevelReason": null
     }
-  ]
+  ],
+  "python-boundary": [
+    {
+      "description": "Assert that zero returns 1 in an isolated unit test.",
+      "reasoning": "Assert the zero return boundary.",
+      "expectedOutcome": "The return value is 1 for zero.",
+      "level": "unit",
+      "lowerLevelReason": null
+    }
+  ],
+  "python-relative-uncertainty": [],
+  "local-freshness": []
 }

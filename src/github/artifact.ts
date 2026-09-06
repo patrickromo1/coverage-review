@@ -14,6 +14,7 @@ export const CiReviewArtifactSchema = z.strictObject({
     z.strictObject({ status: z.literal('failed'), reason: z.enum(['missing-token', 'permission-denied', 'cancelled', 'api-error', 'invalid-response']) }),
   ]),
 }).superRefine((artifact, context) => {
+  if (artifact.review.schemaVersion !== '1') context.addIssue({ code: 'custom', message: 'Local snapshot artifacts are not publishable' });
   if (artifact.review.provenance.executionMode !== 'github') context.addIssue({ code: 'custom', message: 'CI artifact must contain a GitHub execution result' });
   if (artifact.context.headSha && artifact.review.scope.headSha !== artifact.context.headSha) context.addIssue({ code: 'custom', message: 'Review head does not match event head' });
   if (artifact.comparisonBaseSha && artifact.review.scope.baseSha !== artifact.comparisonBaseSha) context.addIssue({ code: 'custom', message: 'Review base does not match resolved comparison base' });

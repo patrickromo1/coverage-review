@@ -1,6 +1,6 @@
 # coverage-review
 
-A TypeScript CLI for collecting deterministic evidence about changed code, candidate tests, and externally generated coverage. Milestone 4 adds an explicitly selected OpenAI Agents SDK reviewer and deterministic semantic evals on top of the shared executor and conservative verdict policy. Offline modes remain credential-free.
+A TypeScript CLI for collecting deterministic evidence about changed code, candidate tests, and externally generated coverage. Milestones 1–6 provide an explicitly selected OpenAI reviewer, deterministic semantic evals, GitHub Actions/Checks, bounded monorepo evidence, and immutable local snapshots through one shared executor. Offline modes remain credential-free.
 
 ## Setup and commands
 
@@ -36,13 +36,13 @@ Git comparisons are direct base-to-head tree comparisons, not merge-base compari
 
 ## Limitations
 
-- Test discovery supports JavaScript and TypeScript conventions only. Static relationships recognize relative ESM imports/exports and literal CommonJS `require` calls. It does not execute configuration, resolve aliases, package exports, generated tests, dynamic imports, or framework-specific dependency injection.
+- Test discovery supports JavaScript/TypeScript and focused Python conventions (detailed below). Static relationships recognize relative ESM imports/exports and literal CommonJS `require` calls. It does not execute configuration, resolve aliases, package exports, generated tests, dynamic imports, or framework-specific dependency injection.
 - Generic `*.test.*` and `*.spec.*` files have level `unknown`; location/name signals are intentionally conservative. Discovery does not inspect assertions and cannot establish behavioral adequacy.
 - LCOV has no standard commit field. Reports are `unverifiable` unless `--coverage-commit` is supplied, and `stale` when supplied metadata differs from the reviewed head. Evidence still exposes measurements with that freshness state rather than silently accepting them as current.
 - Only LCOV `SF`, `DA`, and `BRDA` details are used. Summary and function records are ignored. Malformed records, paths outside the repository, duplicate normalized source records, missing files, oversized reports, and unavailable reports are surfaced explicitly.
 - Line and branch evidence is filtered to changed head lines. Deleted files and binary changes have no applicable head-line coverage. Pure renames may have no changed lines.
 - Git filenames are decoded as UTF-8; arbitrary non-UTF-8 filename bytes are unsupported. Submodule and non-blob sources are reported as unsupported source evidence.
-- The tool never executes repository tests or code. GitHub APIs, publishing, and Actions integration remain out of scope.
+- Review analysis never executes repository tests or code. GitHub Actions and opt-in Checks publishing run through separate adapters.
 
 ## Tests
 
@@ -94,7 +94,7 @@ Human output starts with `OFFLINE SCRIPTED REVIEW`; JSON records `provenance.age
 
 Defaults are 50 findings, 4,000 characters per text field, and a 30,000 ms total collection/agent deadline. Configuration allows 1–1,000 findings, 1–100,000 characters, and 1–300,000 ms. Over-limit proposals fail validation without silent truncation. Arrays also have fixed bounds: 10,000 reviewed paths, 50 agent limitations, 100 cited tests per finding, 20 references and 20 suggested tests per finding. CLI proposal files must be regular files no larger than 1 MiB. Existing Git, source-read, discovery, and LCOV input bounds still apply.
 
-The deadline covers collection and agent invocation together. Timeout returns a failed result and aborts the agent signal. In-process cancellation is cooperative: a non-cooperative promise or collector may keep running after the executor returns, and synchronous JavaScript cannot be preempted (elapsed deadlines are checked when it returns). Provider adapters must enforce their own transport/resource bounds. The application never runs repository tests, writes repository source, modifies Git, or publishes review results.
+The deadline covers collection and agent invocation together. Timeout returns a failed result and aborts the agent signal. In-process cancellation is cooperative: a non-cooperative promise or collector may keep running after the executor returns, and synchronous JavaScript cannot be preempted (elapsed deadlines are checked when it returns). Provider adapters must enforce their own transport/resource bounds. Review analysis never runs repository tests, writes repository source, modifies Git, or publishes results; the separate Actions publisher may publish an explicitly requested Check.
 
 `evals/fixtures/review/cases.json` includes missing-test, cosmetic-only, adequately-tested, and E2E-only-validation cases. Integration tests build disposable local repositories, collect real Git/LCOV evidence, and compare fixture-runner and CLI results, including the CLI process entrypoint. Fixture tests are read as text and never executed. These fixtures exercise deterministic orchestration and policy; they do not measure real-model precision/recall or establish real behavioral coverage.
 
@@ -206,7 +206,7 @@ pnpm eval:offline --fixtures boundary,cosmetic,transaction
 pnpm eval:live --model <model-id> --fixtures boundary,cosmetic,adequate,e2e-only,transaction,misleading,missing-evidence,stale-evidence,truncated-evidence,embedded-instructions --repeats 1 --concurrency 1 --timeout-ms 60000 --max-turns 8 --max-tool-calls 30
 ```
 
-Versioned `evals/fixtures/semantic/v1/inputs.json` contains ten isolated source/test snapshots: boundary/error handling, cosmetic edits, adequate assertions, E2E-only validation, genuine database integration, misleading names/executed lines without assertions, missing/stale/truncated evidence, and embedded instructions. The fixture repository is a fixed in-memory commit-addressed map with content-derived commit IDs. It never executes snapshot code/tests or writes Git. Coverage is synthetic external evidence; fixture diffs replace the whole source body and therefore have broader changed ranges than minimal real Git diffs.
+Versioned `evals/fixtures/semantic/v1/inputs.json` contains thirteen isolated source/test snapshots: boundary/error handling, cosmetic edits, adequate assertions, E2E-only validation, genuine database integration, misleading names/executed lines without assertions, missing/stale/truncated evidence, embedded instructions, Python boundary/relative-import uncertainty, and local freshness. The fixture repository is a fixed in-memory commit-addressed map with content-derived commit IDs. It never executes snapshot code/tests or writes Git. Coverage is synthetic external evidence; fixture diffs replace the whole source body and therefore have broader changed ranges than minimal real Git diffs.
 
 `expected.json` and `scripts.json` are harness-only annotations and canned proposals. Neither is included in the repository map, manifest, tool scope, or live prompt. Live runs create fresh agents per case/repeat. The shared `executeReview` path validates all results before scoring. Eval output includes per-case results, scores, fixture version, prompt/configuration/policy versions, selected model, configured provider limits, and allowlisted usage when available. Failed requests may have no reported usage; null is not zero billing.
 
@@ -230,4 +230,99 @@ A denominator of zero yields JSON `null`. FPR is **not** false discovery rate (`
 
 Aggregate metrics sum counts across all selected repeats, including failures. Failed/partial counts, proposal rejections, and verdict distributions are separate from finding quality. A cosmetic `needs-review` caused by absent measurements is not itself a false finding.
 
-The measured scripted baseline is 10 runs, 5 matched positives, 0 false findings, 0 missed scripted expectations, 5 correct test levels, 4 partial runs, and 3 unresolved negatives. Precision/recall/test-level accuracy are 1; FPR/FNR are 0. Verdicts: 5 `needs-tests`, 3 `needs-review`, 2 `adequate`. These numbers demonstrate deterministic harness behavior only. No paid live review/eval was run. Real model quality, model availability, network cancellation, and repeatability remain unmeasured; even pinned model IDs can produce varying findings and usage across runs.
+The milestone-6 scripted baseline is 13 runs, 6 matched positives, 0 false findings, 0 missed scripted expectations, 6 correct test levels, 0 failed runs, 6 partial runs, and 5 unresolved negatives. Precision/recall/test-level accuracy are 1; FPR/FNR are 0. Verdicts: 6 `needs-tests`, 5 `needs-review`, 2 `adequate`. These numbers demonstrate deterministic harness behavior only. No paid live review/eval was run. Real model quality, model availability, network cancellation, and repeatability remain unmeasured; even pinned model IDs can produce varying findings and usage across runs.
+
+## Milestone 6: hardening and expansion
+
+The starting point is main at `7444fb2` (merged PR #5). The measured bottleneck was repeated comparison resolution: every changed-file patch reran two commit resolutions and a name-status enumeration. `LocalGitDiff` now caches one immutable comparison, orders paths deterministically, and exposes request/byte counters. `ReviewRepository` owns a bounded cache for one review's two snapshots and read limit; no cache survives into another review. Discovery and agent source reads share it. Collection indexes coverage by canonical path instead of repeatedly scanning reports.
+
+### Reproducible baseline
+
+Run `pnpm benchmark:hardening`. `evals/fixtures/hardening/large-monorepo.json` specifies 10 packages, 100 changed sources, and 100 candidate tests. The benchmark creates a disposable repository; its source/tests are never executed. The uncached leg uses fresh adapters per patch to reproduce milestone 5's exact Git operation pattern. This is an operation-path comparison, not a claim that the entire old application was benchmarked. Both legs run in the same process. Recorded output is in `evals/fixtures/hardening/measured.json`.
+
+| Measurement | Uncached baseline | Cached |
+| --- | ---: | ---: |
+| Changed files / scanned files | 100 / 200 | 100 / 200 |
+| Diff Git requests | 403 | 103 |
+| Comparison enumerations | 101 | 1 |
+| Diff Git output bytes | 292,382 | 24,182 |
+| Source reads across two passes | 200 | 100 |
+| Source bytes | 4,800 | 2,400 |
+| Repeated source reads | 100 | 0 |
+| Model tool calls | 0 | 0 |
+| Elapsed time on development machine | 5,594 ms | 2,095 ms |
+| Process RSS at end of leg | 107,626,496 | 114,196,480 |
+
+Git request count falls 74.4%; source reads fall 50%. Tests assert operation counts, not elapsed time or RSS. RSS is process-wide, includes retained runtime memory between legs, and is not peak memory or evidence of a memory improvement. The benchmark does not measure live provider latency or quality.
+
+### Bounds, pagination, cancellation, and scope
+
+- Git tree/name-status output: 16 MiB; maximum 20,000 enumerated files. Oversized comparison enumeration fails explicitly. Oversized repository listings remain truncated.
+- Collection: at most 500 changed-file reads/patches and 16 MiB aggregate patch text. Remaining paths stay in scope with explicit truncated/omitted evidence. Scope JSON includes `evidenceScope.collectedFiles`, `omittedFiles`, `unavailableFiles`, and `truncatedFiles`. Categories can overlap; proposal `reviewedFiles` records what the agent claims to have reviewed and does not make omitted evidence complete.
+- Repository session defaults: 4,000 underlying reads, 32 KiB per source, 16 MiB cumulative byte reservations, 4 MiB cache including entry overhead, at most four active reads. Reservations are charged before asynchronous reads; cache hits avoid I/O. Concurrent excess returns truncated rather than opening an unbounded queue. `RepositoryBudgetSchema` validates programmatic bounds; repository JSON cannot raise them.
+- `Repository.page` is optional; `ReviewRepository.page` implements it. Pages contain at most 500 paths, with 40 pages per discovery traversal and 400 per session. Cursors bind snapshot identity, prefix, page size, and listing contents. Unknown snapshots, malformed/out-of-range cursors, query changes, and path escapes are rejected. Pagination cannot recover files omitted by the upstream bounded listing. It is internal repository/discovery pagination, not an HTTP service or a new model tool.
+- Discovery is sequential, at most 2,000 candidate files per supported language, sharing the cumulative source budget. Each language pass caps source paths at 1,000, imports/candidate and relationships/candidate at 100, and total relationships at 20,000. Excess remains explicitly truncated; file-local evidence retains only relationships relevant to that file. Cancellation is checked before scheduling and passed into Git subprocesses, listings, file reads, discovery, coverage, and tools. Executor deadline defaults to 30 seconds across capture/collection/agent; subprocesses also have 30-second caps. Non-cooperative injected adapters and synchronous parsing cannot be forcibly preempted; parser size/work bounds remain necessary.
+- Proposals are never silently truncated. Every omitted, unavailable, unsupported, stale, ambiguous, rejected, or truncated path remains conservative: accepted findings imply `needs-tests`; no findings with uncertainty imply `needs-review`. Budgets never produce `adequate`.
+
+### Monorepo configuration and coverage
+
+Both local and GitHub entrypoints accept explicit `--config <path>`. No configuration is auto-discovered or executed. Local config paths are caller-selected; Actions config and all configured report paths are workspace-contained, regular, non-symlink files. JSON is capped at 64 KiB, depth 16, rejects duplicate keys, and is runtime-validated. Unknown keys, overlapping package/source roots, paths outside packages, and unsafe paths are rejected. Relative paths inside the document are repository-relative, not relative to the config file. At most 50 packages, 20 source roots per package, and 20 reports are accepted.
+
+```json
+{
+  "schemaVersion": "1",
+  "packages": [
+    { "root": "packages/web", "sourceRoots": ["packages/web/src"] },
+    { "root": "packages/service", "sourceRoots": ["packages/service/src"] }
+  ],
+  "reports": [
+    { "path": "coverage/web.info", "format": "lcov", "root": "packages/web" },
+    { "path": "coverage/service.json", "format": "coverage-py-json", "root": "packages/service/src" }
+  ]
+}
+```
+
+Add `commitSha` with the full reviewed head to each report only when generated by a trusted external step for that commit. A report `root` prefixes its relative source paths: `src/value.ts` plus `packages/web` becomes `packages/web/src/value.ts`. Coverage.py `value.py` plus `packages/service/src` becomes `packages/service/src/value.py`. Omit root for already repository-relative paths. There is no basename fallback. Package roots restrict name/location hints; static relative TS/JS imports may still establish cross-package relationships. Python source roots define import-module lookup. Changed sources outside configured roots remain in the review and produce discovery uncertainty.
+
+`--config` and legacy `--lcov`/`--coverage-commit` are mutually exclusive; there is no implicit merge or precedence override. Legacy single-LCOV invocation remains supported. Config cannot contain credentials, providers, endpoints, publishing permissions, event identity, scripts, plugins, or resource-limit overrides.
+
+`MultipleCoverageProvider` preserves each report's format, root, declared commit, digest (when successfully parsed), consumed bytes, status, freshness, and diagnostics. Reports have 16 MiB individual and 32 MiB aggregate byte budgets, plus 200,000 aggregate file/line/branch records. Failed reads consume their byte reservation. Inputs exceeding a budget become explicit truncated reports. LCOV has a 200,000 input-line parser bound; JSON depth and token-delimiter bounds cover even ignored metadata.
+
+Identical report bytes with the same format, root, and commit metadata are idempotent; duplicate inputs remain identified in provenance but do not add hits. Identical file measurements across distinct reports are also idempotent. Differing overlapping file measurements remove that file's aggregate measurements and produce a conflict diagnostic; order cannot choose a winning count. A stale, incomplete, or malformed report makes the aggregate uncertain, even when another report is fresh. This is intentionally conservative across the whole review, including unrelated reports; per-file relevance-based relaxation is deferred.
+
+Coverage.py JSON format **3** is the additional format, selected for the mixed-language monorepo fixture. The official [JSON command documentation](https://coverage.readthedocs.io/en/latest/commands/cmd_json.html) and [7.6.1 reporter implementation](https://github.com/nedbat/coveragepy/blob/7.6.1/coverage/jsonreport.py) specify the format marker, executed/missing/excluded lines, and executed/missing branch arcs. Executed/missing values become boolean 1/0 measurements, not execution frequencies. Excluded or absent lines remain absent; they are never invented as covered. Branch-disabled reports carry uncertainty; branch-enabled reports must include both arc arrays. Unknown format versions, duplicate/conflicting lines/arcs/object keys, malformed paths, and malformed data are rejected. Summary, context, function, and class metadata do not supply additional behavioral evidence. No `.coverage` database, XML, universal JSON, or coverage generation is supported. LCOV unknown `BRDA` hits now preserve both `hits: null` and `covered: null`; measured zero remains `0/false`.
+
+### Python discovery
+
+`PythonTestDiscovery` recognizes `test_*.py` and `*_test.py` filenames (pytest/unittest-style conventions) and simple absolute `import module` / `from module import ...` statements. Module names are mapped only against changed source paths under configured source roots, or repository root when no packages are supplied. Multiple matches remain ambiguous. Names and co-location never cross configured package boundaries; explicit unambiguous static imports can.
+
+This is bounded lexical discovery, not a Python interpreter or AST parser. Dynamic imports, relative imports, multiline/triple-quoted syntax, unresolved modules, and aliases retain uncertainty. Test level requires explicit `unit`, `integration`, or `e2e` path segments; otherwise it is unknown. No assertion coverage is inferred from import/name/execution evidence. JS/TS non-relative imports now also retain explicit unresolved-import uncertainty. Unsupported languages continue to prevent adequate analysis. No runtime plugin system was introduced.
+
+### Staged and unstaged review
+
+```sh
+pnpm dev --repo /path/to/repo --staged --offline-review /path/to/proposal.json --json
+pnpm dev --repo /path/to/repo --unstaged --offline-review /path/to/proposal.json --config /path/to/review.json --json
+# Explicit provider invocation, only when a paid live review is intended:
+pnpm dev --repo /path/to/repo --staged --review --provider openai --model <model-id>
+```
+
+`--staged` compares HEAD with a captured index; `--unstaged` compares a captured index with captured tracked working-tree files. Partially staged files therefore produce different, correct comparisons. Untracked files are excluded, including potential untracked tests. Modes require offline/live review and reject each other and `--base`, `--head`, `--file`, or `--evidence`. Incompatible flags are rejected before provider construction. Actions accepts neither local mode and continues to use validated commits.
+
+Capture reads blob objects and regular files into an immutable bounded map. Diff hunks are generated from that map with `git diff --no-index` over private temporary files; the temporary data is deleted afterward. It never stages, writes Git objects, commits, changes the index, or alters working-tree content. Paths are checked for containment/symlinks, file descriptors and metadata are checked, and index/HEAD plus working content are checked again after capture. Concurrent modifications retry once; continued instability, conflicts, oversized/unsafe inputs, or exhausted time return structured failed reviews. This detects observed concurrent edits, not an atomic filesystem transaction against an adversarial writer. Run against a stable user-controlled working tree.
+
+Capture limits are 2,000 tree/index entries per snapshot, 32 KiB per regular source, 32 MiB cumulative source bytes including verification/retries, 10,000 Git requests, 500 changed files, two attempts, and 30 seconds (also bounded by the executor). Unsupported staged symlinks are retained without following targets; unsafe tracked working-tree symlinks fail capture. Binary/non-UTF-8 content is unavailable for line review. Exact-content renames preserve canonical new paths and old base-side paths. Edited renames and ambiguous identical-content rename candidates are represented as additions/deletions, not guessed. Unstaged renames to untracked destinations appear as tracked deletions because the destination is outside scope. Submodules, sparse-directory index entries, and unborn HEAD are explicit unsupported/failed captures.
+
+Staged base identity is the real HEAD SHA. Captured index/working identities use `local:<sha256>` over canonical paths, modes, and content digests; they are **not Git commits**. Diffs, source, tests, tools, and references use the same captured maps. Commit coverage metadata cannot establish local freshness; the executor forces local coverage to unverifiable even for an injected provider claiming a match.
+
+### Schema compatibility and telemetry
+
+Commit results/evidence continue to use schema v1 and `ev1:` references; old v1 artifacts/fixtures remain readable. Current v1 parsers additionally accept optional `scope.evidenceScope` and per-report evidence provenance/format fields. Old strict consumers must upgrade to the current schemas before consuming newly emitted optional fields; unknown fields are rejected explicitly, never silently reinterpreted.
+
+Local results/evidence use schema v2, `ev2:` references, and `provenance.snapshotMode` (`staged` or `unstaged`). `evidenceSchemaVersion` matches the result version. Consumers must dispatch on the version and treat local identities as opaque content IDs; do not place them in Git commands. Proposals remain v1 and contain no verdict. New executor/policy provenance versions are 2; the provider prompt version is coverage-review-2. CI artifact envelope stays v1 and rejects local v2 results or mismatched identity versions; no migration can turn a local snapshot into a publishable commit artifact. Regenerate evidence references when any snapshot or evidence changes.
+
+Tracing remains opt-in, with no external service dependency or SDK exporter. Allowlisted stages now include capture, discovery, coverage parsing, collection, agent, validation, review, and publishing. Counts include scanned files, reads, reserved/read bytes, cache hits, pages, truncations, and diff requests where available. `ReviewTrace` supports an injected clock and in-memory exporters. Default spans contain no paths, source, patches, prompts, credentials, raw exceptions, model prose, or provider payloads. Existing separately requested sensitive-manifest tracing remains bounded. Publishing status stays separate from the underlying result, including in telemetry.
+
+No measured need justified a second privileged publisher. Existing opt-in Checks remain the only publishing workflow; creating a Check requires Checks write permission and a commit head ([official REST documentation](https://docs.github.com/en/rest/checks/runs#create-a-check-run)). A future artifact-download publisher would require independent trusted API validation of workflow/run/attempt/PR/head/artifact identity and bounded download/archive handling. The existing result-level provenance helper is not that workflow. No such elevated artifact consumer was added; no PR comments, labels, merges, releases, or branch mutation were introduced.
+
+Additional validation: `pnpm benchmark:hardening`, `pnpm eval:offline`, `pnpm action:smoke`, and CLI help checks supplement typecheck, lint, tests, and production build. Semantic fixtures keep expected labels/scripts outside agent-visible evidence. New local integration tests cover partial staging, isolation, concurrent edits, conflicts, renames/deletions, binary files, symlinks, identity, and freshness. Real-model quality and live publishing remain unmeasured; no paid calls or real Checks are part of validation.

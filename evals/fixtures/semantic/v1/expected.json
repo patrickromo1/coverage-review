@@ -208,5 +208,74 @@
         "unit"
       ]
     }
+  ],
+  "python-boundary": [
+    {
+      "id": "python-boundary-behavior",
+      "missing": true,
+      "file": "src/value.py",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "zero",
+          "0"
+        ],
+        [
+          "assert",
+          "return"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "python-relative-uncertainty": [
+    {
+      "id": "python-relative-uncertainty-behavior",
+      "missing": false,
+      "file": "src/value.py",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "zero",
+          "0"
+        ],
+        [
+          "assert",
+          "return"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "local-freshness": [
+    {
+      "id": "local-freshness-behavior",
+      "missing": false,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "zero",
+          "0"
+        ],
+        [
+          "assert",
+          "return"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
   ]
 }

@@ -1,6 +1,6 @@
 import type { ReviewProposal } from '../../agent/review-agent.js';
 import type { CoverageEvidence } from '../evidence/schema.js';
-import { isTypeScriptOrJavaScript } from '../test-discovery/typescript-test-discovery.js';
+import { isSupportedSource } from '../test-discovery/supported-test-discovery.js';
 import type { EvidenceReference } from './references.js';
 import type { Limitation, ReviewResult } from './result.js';
 
@@ -16,7 +16,7 @@ export function evidenceLimitations(evidence: CoverageEvidence): Limitation[] {
     add('coverage-uncertain', 'Coverage report is stale, unverifiable, or reported diagnostics.');
   }
   for (const file of evidence.files) {
-    if (file.source.status !== 'available' || !isTypeScriptOrJavaScript(file.path) || file.diff.status !== 'available' || file.diff.binary) {
+    if (file.source.status !== 'available' || !isSupportedSource(file.path) || file.diff.status !== 'available' || file.diff.binary) {
       add('evidence-incomplete', 'Source or diff is missing, unsupported, binary, or truncated.', file.path);
     }
     if (file.coverage.status === 'missing' || file.coverage.status === 'unknown' ||

@@ -1,3 +1,5 @@
+import { discoveryListing } from '../repository/repository.js';
+import { packageFor, type ReviewConfig } from '../config/review-config.js';
 import { extname, posix } from 'node:path';
 import type { CandidateTest, RelationshipSignal, TestDiscovery, TestDiscoveryRequest, TestLevel } from './test-discovery.js';
 
@@ -54,13 +56,20 @@ function conventionalSignals(testPath: string, sourcePaths: readonly string[]): 
 }
 
 export class TypeScriptTestDiscovery implements TestDiscovery {
-  constructor(private readonly maxCandidates = 2_000) {}
+  constructor(private readonly maxCandidates = 2_000, private readonly config?: ReviewConfig) {
+    if (!Number.isSafeInteger(maxCandidates) || maxCandidates < 1 || maxCandidates > 2000) throw new Error('Invalid candidate budget');
+  }
 
-  async discover({ repository, headSha, sourcePaths }: TestDiscoveryRequest) {
-    const listing = await repository.listFiles(headSha);
+  async discover({ repository, headSha, sourcePaths, signal }: TestDiscoveryRequest) {
+    sourcePaths = sourcePaths.filter(isTypeScriptOrJavaScript);
+    const sourcesOmitted = sourcePaths.length > 1000;
+    sourcePaths = sourcePaths.slice(0, 1000);
+    let relationshipCount = 0;
+    const listing = await discoveryListing(repository, headSha, signal);
     const paths = listing.paths.filter((path) => scriptExtension.test(path) && testName.test(path));
     const diagnostics: string[] = [];
-    let truncated = listing.status === 'truncated';
+    let truncated = listing.status === 'truncated' || sourcesOmitted;
+    if (sourcesOmitted) diagnostics.push('Discovery source-path budget exhausted');
     if (listing.reason) diagnostics.push(listing.reason);
     if (paths.length > this.maxCandidates) {
       paths.length = this.maxCandidates;
@@ -69,11 +78,16 @@ export class TypeScriptTestDiscovery implements TestDiscovery {
     }
     const candidates: CandidateTest[] = [];
     for (const path of paths) {
-      const signals = conventionalSignals(path, sourcePaths);
+      signal?.throwIfAborted();
+      if (relationshipCount >= 20_000) { truncated = true; diagnostics.push('Discovery relationship budget exhausted'); break; }
+      const signals = conventionalSignals(path, this.config ? sourcePaths.filter((source) => packageFor(source, this.config!) === packageFor(path, this.config!)) : sourcePaths);
       const uncertainty = ['Candidate relationship does not prove that changed behavior is asserted'];
-      const read = await repository.readSource(headSha, path);
+      const read = await repository.readSource(headSha, path, signal);
       if (read.status === 'available') {
-        for (const specifier of importedSpecifiers(read.content)) {
+        const specifiers = importedSpecifiers(read.content);
+        if (specifiers.length > 100) { truncated = true; diagnostics.push('Static import budget exhausted'); }
+        for (const specifier of specifiers.slice(0, 100)) {
+          if (!specifier.startsWith('.')) uncertainty.push('Non-relative import or alias was not resolved');
           const resolved = resolveImport(path, specifier, sourcePaths);
           for (const sourcePath of resolved.paths) {
             if (!signals.some((signal) => signal.type === 'static-import' && signal.sourcePath === sourcePath)) {
@@ -87,6 +101,8 @@ export class TypeScriptTestDiscovery implements TestDiscovery {
       } else {
         diagnostics.push(`Could not inspect ${path}: ${read.reason}`);
       }
+      if (signals.length > Math.min(100, 20_000 - relationshipCount)) { signals.length = Math.min(100, 20_000 - relationshipCount); truncated = true; diagnostics.push('Per-candidate relationship budget exhausted'); }
+      relationshipCount += signals.length;
       if (signals.some((signal) => 'sourcePath' in signal)) {
         candidates.push({
           path, level: levelFor(path), relationships: signals,
@@ -94,7 +110,7 @@ export class TypeScriptTestDiscovery implements TestDiscovery {
         });
       }
     }
-    return { status: truncated ? 'truncated' as const : 'available' as const, candidates, diagnostics };
+    return { status: truncated ? 'truncated' as const : 'available' as const, candidates, diagnostics: [...new Set(diagnostics)] };
   }
 }
 

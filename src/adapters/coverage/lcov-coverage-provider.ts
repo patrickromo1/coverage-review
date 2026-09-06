@@ -14,8 +14,9 @@ export class LcovCoverageProvider implements CoverageProvider {
     if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('maxBytes must be a positive integer');
   }
 
-  async getCoverage({ headSha }: { readonly headSha: string }) {
-    const freshness: CoverageProvenance['freshness'] = this.commitSha === undefined
+  async getCoverage({ headSha, signal }: { readonly headSha: string; readonly signal?: AbortSignal }) {
+    signal?.throwIfAborted();
+    const freshness: CoverageProvenance['freshness'] = headSha.startsWith('local:') || this.commitSha === undefined
       ? 'unverifiable' : this.commitSha.toLowerCase() === headSha.toLowerCase() ? 'matching' : 'stale';
     const provenance: CoverageProvenance = {
       format: 'lcov', reportPath: resolve(this.reportPath), freshness,
@@ -33,6 +34,7 @@ export class LcovCoverageProvider implements CoverageProvider {
         const buffer = Buffer.alloc(this.maxBytes + 1);
         let total = 0;
         while (total < buffer.byteLength) {
+          signal?.throwIfAborted();
           const { bytesRead } = await file.read(buffer, total, buffer.byteLength - total, null);
           if (bytesRead === 0) break;
           total += bytesRead;

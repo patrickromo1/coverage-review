@@ -6,7 +6,7 @@ it('normalizes paths and preserves zero and unknown branch measurements', () => 
   expect(files).toEqual([{ path: 'src/a.ts', lines: [
     { line: 2, hits: 0, covered: false }, { line: 3, hits: 4, covered: true },
   ], branches: [
-    { line: 3, block: '0', branch: '0', hits: null, covered: false },
+    { line: 3, block: '0', branch: '0', hits: null, covered: null },
     { line: 3, block: '0', branch: '1', hits: 0, covered: false },
   ] }]);
 });

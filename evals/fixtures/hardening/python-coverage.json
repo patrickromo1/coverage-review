@@ -1,0 +1,9 @@
+{
+  "meta": { "format": 3, "version": "7.6.1", "branch_coverage": true, "show_contexts": false },
+  "files": {
+    "value.py": {
+      "executed_lines": [1, 2], "missing_lines": [3], "excluded_lines": [],
+      "executed_branches": [[2, 3]], "missing_branches": [[2, -1]]
+    }
+  }
+}

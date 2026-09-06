@@ -1,0 +1,35 @@
+{
+  "benchmarkVersion": "1",
+  "network": false,
+  "repositoryCodeExecuted": false,
+  "results": [
+    {
+      "mode": "uncached-milestone-5-equivalent",
+      "changedFiles": 100,
+      "filesScanned": 200,
+      "diffGitRequests": 403,
+      "diffOutputBytes": 292382,
+      "comparisons": 101,
+      "sourceReads": 200,
+      "sourceBytes": 4800,
+      "repeatedReads": 100,
+      "toolCalls": 0,
+      "elapsedMs": 5594,
+      "rssBytes": 107626496
+    },
+    {
+      "mode": "cached",
+      "changedFiles": 100,
+      "filesScanned": 200,
+      "diffGitRequests": 103,
+      "diffOutputBytes": 24182,
+      "comparisons": 1,
+      "sourceReads": 100,
+      "sourceBytes": 2400,
+      "repeatedReads": 0,
+      "toolCalls": 0,
+      "elapsedMs": 2095,
+      "rssBytes": 114196480
+    }
+  ]
+}
