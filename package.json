@@ -8,7 +8,8 @@
   },
   "packageManager": "pnpm@11.25.0",
   "bin": {
-    "coverage-review": "dist/cli/main.js"
+    "coverage-review": "dist/cli/main.js",
+    "coverage-review-github": "dist/github/main.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
@@ -18,7 +19,9 @@
     "test:watch": "vitest",
     "dev": "tsx src/cli/main.ts",
     "eval:offline": "tsx src/evals/main.ts --offline",
-    "eval:live": "tsx src/evals/main.ts --live"
+    "eval:live": "tsx src/evals/main.ts --live",
+    "github": "tsx src/github/main.ts",
+    "action:smoke": "vitest run tests/integration/github-action.test.ts"
   },
   "dependencies": {
     "@openai/agents": "^0.17.0",

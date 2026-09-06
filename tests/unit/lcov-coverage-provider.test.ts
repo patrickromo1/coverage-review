@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
@@ -22,4 +22,8 @@ it('reports missing, malformed, and oversized coverage explicitly', async () => 
   await writeFile(malformed, 'SF:src/a.ts\nDA:nope,0\nend_of_record\n');
   expect((await new LcovCoverageProvider(root, malformed).getCoverage({ headSha: 'head' })).status).toBe('unsupported');
   expect((await new LcovCoverageProvider(root, malformed, undefined, 2).getCoverage({ headSha: 'head' })).status).toBe('truncated');
+  const link = join(root, 'link.info'); await symlink(malformed, link);
+  expect(await new LcovCoverageProvider(root, link).getCoverage({ headSha: 'head' })).toMatchObject({ status: 'unsupported', reason: expect.stringContaining('symbolic') });
+  const directory = join(root, 'coverage'); await mkdir(directory);
+  expect(await new LcovCoverageProvider(root, directory).getCoverage({ headSha: 'head' })).toMatchObject({ status: 'unsupported', reason: expect.stringContaining('regular file') });
 });

@@ -1,4 +1,5 @@
-import { open } from 'node:fs/promises';
+import { lstat, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { resolve } from 'node:path';
 import type { CoverageProvider, CoverageProvenance } from '../../core/coverage/coverage-provider.js';
 import { parseLcov } from '../../core/coverage/parse-lcov.js';
@@ -22,7 +23,10 @@ export class LcovCoverageProvider implements CoverageProvider {
     };
     let content: string;
     try {
-      const file = await open(this.reportPath, 'r');
+      const pathStat = await lstat(this.reportPath);
+      if (pathStat.isSymbolicLink()) return { status: 'unsupported' as const, reason: 'LCOV path must not be a symbolic link', provenance };
+      if (!pathStat.isFile()) return { status: 'unsupported' as const, reason: 'LCOV path must be a regular file', provenance };
+      const file = await open(this.reportPath, constants.O_RDONLY | constants.O_NOFOLLOW);
       try {
         const size = (await file.stat()).size;
         if (size > this.maxBytes) return { status: 'truncated' as const, reason: `LCOV exceeds ${this.maxBytes} byte limit`, provenance };

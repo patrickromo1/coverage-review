@@ -1,0 +1,35 @@
+name: Coverage review with external LCOV
+on: pull_request
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # This user-controlled step runs tests. coverage-review itself never does.
+      - name: Generate LCOV
+        run: pnpm test -- --coverage
+      - id: coverage-review
+        run: >-
+          pnpm github -- --offline-review evals/fixtures/review/empty-proposal.json
+          --lcov coverage/lcov.info
+          --coverage-commit "${{ github.event.pull_request.head.sha }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-review-result
+          path: ${{ steps.coverage-review.outputs.result-path }}
+          if-no-files-found: error

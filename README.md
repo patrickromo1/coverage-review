@@ -145,6 +145,56 @@ Application spans use trace/span IDs, fixed stage names, duration, status, count
 
 Exporter errors are swallowed and each export wait is capped at 100 ms. A non-cooperative custom exporter can continue after that wait; its owner must implement its own cancellation. Export overhead before agent execution counts against the review deadline. Tracing tests inspect captured spans for sensitive sentinels, and SDK tests verify that only mocked Responses requests occur, with no trace requests.
 
+## GitHub Actions and Checks
+
+Milestone 5 adds a dedicated Node 22 Actions entrypoint (`pnpm github` in a source checkout, or `coverage-review-github` after `pnpm build`). It accepts no repository, owner, pull-request number, base ref, or head ref arguments. Those values come only from the bounded `GITHUB_EVENT_PATH` payload after it is checked against `GITHUB_REPOSITORY`; full 40/64-character commit IDs are retained. For pull requests, the entrypoint validates REST metadata when a token is available and compares the merge base to the trusted PR head. A local `git merge-base` fallback requires `actions/checkout` with `fetch-depth: 0`.
+
+The entrypoint always uses `executeReview`; GitHub does not have its own evidence, acceptance, or verdict policy. Provider-independent GitHub contracts live in `src/github/domain.ts`, REST/SDK response shapes stop in `src/github/rest-client.ts`, and the review agent never receives the GitHub client or token. Publishing happens only after `ReviewResult` validation and never changes that result.
+
+Supported contexts are explicit:
+
+- `pull_request`: supported. Same-repository PRs may use explicitly selected offline or live mode. Fork PRs may use only an explicitly selected offline proposal; an explicit live request is skipped as `needs-review/failed` and is never silently replaced.
+- `pull_request_target`: identified but never analyzes or checks out PR code. It writes a failed `needs-review` artifact.
+- `merge_group`: metadata is validated and identified, but review execution is not yet supported.
+- `workflow_dispatch`: identified, but rejected for analysis because it lacks trusted PR commits.
+- all other events: identified as unsupported and written as failed `needs-review` results.
+
+This follows GitHub's current guidance: fork `pull_request` workflows normally receive a read-only token and no secrets, while `pull_request_target` and `workflow_run` are privileged and must not execute or check out untrusted code ([secure use reference](https://docs.github.com/en/actions/reference/security/secure-use), [workflow permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions), [GITHUB_TOKEN](https://docs.github.com/en/actions/concepts/security/github_token)). Do not enable “send write tokens” or secrets for fork workflows to obtain a live review. A future privileged `workflow_run` publisher must not check out PR code and must validate the included artifact's schema, repository, workflow/event identity, PR number, head SHA, name, path, size, and digest before publishing. `validateArtifactProvenance` supplies the result-level checks but is not a complete artifact-download workflow.
+
+### Inputs, outputs, and artifacts
+
+```sh
+# Credential-free/offline. GITHUB_* variables are populated by Actions.
+pnpm github -- --offline-review evals/fixtures/review/empty-proposal.json
+
+# Explicitly paid/networked; never selected automatically.
+OPENAI_API_KEY=... pnpm github -- --review --provider openai --model <model-id>
+
+# LCOV must have been produced by an earlier user-controlled step.
+pnpm github -- --offline-review proposal.json --lcov coverage/lcov.info --coverage-commit <full-head-sha>
+
+# Optional Check publishing (requires GITHUB_TOKEN with checks: write).
+GITHUB_TOKEN=... pnpm github -- --offline-review proposal.json --publish-check
+```
+
+Inputs are `--offline-review`, explicit `--review --provider openai --model`, optional `--lcov`, `--coverage-commit`, `--timeout-ms`, `--result`, and `--publish-check`. Offline and live are mutually exclusive. Existing local CLI modes and their flags are unchanged. `OPENAI_API_KEY` is read only for an explicit, safe live run. `GITHUB_TOKEN` is optional for read validation and required only to publish a Check. The REST origin is fixed to `api.github.com`; repository and refs cannot be supplied by the model, repository files, or CLI.
+
+The default `coverage-review-result.json` is a versioned `coverage-review-result` envelope containing a runtime-validated `ReviewResult`, validated event context, comparison merge base, and a publishing status that remains separate from the review. It is written atomically, mode 0600, under `GITHUB_WORKSPACE`. Input LCOV/proposal paths must be regular non-symlink files inside the real workspace; directories, escapes, symlinks, malformed data, and oversized files are rejected. LCOV is capped at 16 MiB, proposals/event payloads at 1 MiB, and result artifacts at 4 MiB.
+
+When `GITHUB_OUTPUT` exists, the entrypoint writes only fixed, single-line keys: `verdict`, `analysis-status`, `findings-count`, `rejected-findings-count`, `result-path`, `reviewed-base-sha`, `reviewed-head-sha`, and `publishing-status`. Newlines and NULs are rejected, so values cannot inject extra outputs or workflow commands. Arbitrary model prose is never sent through Actions command files. GitHub likewise recommends file-based handling for arbitrary multiline values ([workflow commands](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands)).
+
+See [offline.yml](examples/workflows/offline.yml), [live-openai.yml](examples/workflows/live-openai.yml), and [external-lcov.yml](examples/workflows/external-lcov.yml). Each example pins Node 22 and pnpm 11.25.0; action major-version tags are illustrative and security-sensitive deployments should pin reviewed action commit SHAs. The standard/offline workflows use no OpenAI credentials. `actions/upload-artifact@v7` uploads an immutable JSON result and reports its SHA-256 digest; GitHub validates that digest when the matching download action retrieves it ([artifact documentation](https://docs.github.com/actions/configuring-and-managing-workflows/persisting-workflow-data-using-artifacts), [upload-artifact](https://github.com/actions/upload-artifact)).
+
+### Check mapping and permissions
+
+The stable Check name is `coverage-review`, bound to the trusted PR head SHA. Conclusions are conservative: complete `adequate` is `success`; `needs-tests` is `failure`; every `needs-review`, partial, or failed result is `neutral`, never success. Only accepted findings become annotations. Severity maps to notice/warning/failure; each annotation uses the validated changed path and line and explicitly labels base/head semantics. A base-side rename finding maps to the validated previous path while the result retains the canonical new path. GitHub Checks has no native base/head-side field, so the side is also carried in the annotation title. Full model prose remains only in the JSON artifact to avoid copying source-like or prompt-like text into API channels.
+
+GitHub permits at most 50 annotations per Check update, so batches are fixed at 50 and total published annotations are capped at 950 (19 requests), with any remainder reported as truncated in the Check summary. The complete validated result remains in the JSON artifact. Summary/title/message sizes and REST responses are bounded. Checks require `checks: write`; PR metadata requires `pull-requests: read`, and commit comparison requires `contents: read`. Uploading with `actions/upload-artifact` in the current run needs no additional repository permission; reading artifacts through the REST API or from another run/repository requires `actions: read`, while deletion/overwrite through token-authenticated artifact APIs requires `actions: write`. Missing/denied permissions yield a sanitized publishing failure and do not alter the review or turn it adequate. See the official [Check Runs API](https://docs.github.com/en/rest/checks/runs), [artifact REST API](https://docs.github.com/en/rest/actions/artifacts), and [workflow permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions).
+
+REST access is capped at 30 requests, 2 MiB per response, two retries, and fixed repository-scoped endpoints. Only 429/502/503/504 responses retry with bounded exponential backoff; authentication, authorization, validation, and deterministic client errors do not. The review deadline remains the existing executor deadline; GitHub metadata/publishing share an abortable bound of that deadline plus 30 seconds. Abortion prevents new requests and reaches `fetch`, though GitHub may still process a request already received. API bodies, authenticated URLs, headers, tokens, raw provider errors, raw source/patch inputs, prompts, provider payloads, local paths, and report paths are excluded from operational errors, outputs, Check prose, and artifacts. The artifact necessarily retains the bounded, schema-validated proposal prose that is part of `ReviewResult`; it never includes the raw prompt, evidence tool payloads, or provider response envelope. Milestone-4 tracing remains disabled and redacted by default.
+
+Remaining limitations: merge queues and manual dispatch are not reviewable; there is no bundled privileged `workflow_run` artifact downloader/publisher; REST cancellation cannot retract a delivered request; GitHub Checks cannot represent base-side annotations natively; and example third-party actions use major tags rather than immutable SHAs. No tests, repository code, comments, labels, merges, branch writes, or source edits are performed by review analysis.
+
 ## Semantic evals
 
 ```sh

@@ -26,17 +26,18 @@ async function withinDeadline<T>(operation: () => Promise<T>, remainingMs: numbe
 
 export async function executeReview(
   baseSha: string, headSha: string, dependencies: EvidenceCollectorDependencies,
-  agent: ReviewAgent, options: Partial<ReviewLimits> = {}, trace = new ReviewTrace(),
+  agent: ReviewAgent, options: Partial<ReviewLimits> & { readonly executionMode?: 'local' | 'github' } = {}, trace = new ReviewTrace(),
 ): Promise<ReviewResult> {
-  const limits = ReviewLimitsSchema.parse(options);
+  const { executionMode = 'local', ...limitOptions } = options;
+  const limits = ReviewLimitsSchema.parse(limitOptions);
   const started = Date.now();
   const deadline = started + limits.timeoutMs;
   const controller = new AbortController();
   const result: ReviewResult = {
     schemaVersion: '1', summary: 'Review could not be completed.', findings: [], verdict: 'needs-review', analysisStatus: 'failed',
-    scope: { baseSha, headSha, resolved: false, changedFiles: [], reviewedFiles: [] },
+    scope: { baseSha, headSha, resolved: false, changedFiles: [], reviewedFiles: [], files: [] },
     limitations: [], rejectedFindings: [], evidenceReferences: [],
-    provenance: { executorVersion: '1', policyVersion: '1', evidenceSchemaVersion: '1', agentMode: agent.mode, limits },
+    provenance: { executorVersion: '1', policyVersion: '1', evidenceSchemaVersion: '1', agentMode: agent.mode, executionMode, limits },
   };
   let toolSession: ReturnType<typeof createEvidenceTools> | undefined;
   let stage: 'evidence' | 'agent' = 'evidence';
@@ -45,7 +46,8 @@ export async function executeReview(
     let evidence;
     try {
       evidence = await withinDeadline(() => collectEvidence(baseSha, headSha, dependencies), deadline - Date.now(), controller);
-      result.scope = { ...evidence.comparison, resolved: true, changedFiles: evidence.files.map((file) => file.path), reviewedFiles: [] };
+      result.scope = { ...evidence.comparison, resolved: true, changedFiles: evidence.files.map((file) => file.path), reviewedFiles: [],
+        files: evidence.files.map((file) => ({ path: file.path, status: file.status, ...(file.previousPath ? { previousPath: file.previousPath } : {}) })) };
       result.evidenceReferences = evidenceReferences(evidence);
       result.limitations = evidenceLimitations(evidence);
       await trace.emit('evidence', evidenceStarted, result.limitations.length ? 'partial' : 'ok', { files: evidence.files.length });

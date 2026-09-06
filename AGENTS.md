@@ -83,6 +83,16 @@ pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --of
 
 Offline output must identify itself as scripted. Existing changed-file, `--file`, and `--evidence` modes remain available. Add deterministic unit tests and local integration fixtures for policy changes, and audit every new failure/uncertainty path for accidental adequate verdicts. Keep fixture data under `evals/fixtures`; never execute fixture repository code during analysis. See README for exact schema boundaries, limits, failure behavior, and remaining methodological limitations.
 
+## Milestone 5 GitHub execution
+
+Every Actions review must use `executeReview`; GitHub event resolution and Check/artifact formatting are separate adapters under `src/github`. Never expose the GitHub client or token to a `ReviewAgent`. Accept repository identity, PR number, and full base/head commits only from a bounded event payload validated against `GITHUB_REPOSITORY`; no GitHub CLI flag may select them. Use the PR merge base when resolved and retain the trusted head SHA.
+
+Only `pull_request` is analyzable. `pull_request_target`, `merge_group`, manual, and unsupported contexts must remain explicit non-success results. Fork PRs may run an explicitly configured offline proposal but never live provider review; do not substitute modes, expose secrets, or grant write tokens. Review analysis never runs tests or repository code. Actions LCOV/proposal inputs must be regular, non-symlink, bounded files contained in `GITHUB_WORKSPACE`.
+
+Checks are derived only from a validated result and bind to the reviewed head. Only complete `adequate` maps to success; `needs-tests` maps to failure, and all partial/failed/needs-review paths map to neutral. Annotate accepted findings only, in deterministic batches of at most 50, with a bounded total. Publishing failures remain separate from `ReviewResult`. Write the versioned CI artifact atomically inside the workspace and use only fixed single-line GitHub output keys. Keep credentials, source, patches, prompts, raw provider/API payloads, filesystem paths, and model prose out of logs, command channels, errors, traces, and Check summaries.
+
+The REST adapter uses fixed GitHub endpoints, runtime-validates responses, bounds requests/pages/bytes/retries, retries only safe transient failures, sanitizes errors, and propagates abort signals. Normal tests and offline examples must remain credential-free and network-free. Never publish a real Check or run a paid provider request during development without explicit authorization.
+
 ## Milestone 4 provider and semantic evals
 
 Keep official SDK imports under `src/agent/openai`. `OpenAIReviewAgent` uses the injectable `SdkExecute` boundary, returns a proposal without verdict, and maps the plain strict SDK wire schema (nullable lowerLevelReason) back to domain validation. CLI and both eval modes use `executeReview`. Never weaken policy to improve model scores. Provider mode additionally requires full scoped evidence/source/candidate-test inspection before adequate.
