@@ -10,7 +10,7 @@ export interface RepositoryFileListing {
 
 /** Commit-addressed repository reads. Implementations must never consult the working tree. */
 export interface Repository {
-  readSource(commitSha: string, path: string): Promise<SourceRead>;
+  readSource(commitSha: string, path: string, signal?: AbortSignal, maxBytes?: number): Promise<SourceRead>;
   listFiles(commitSha: string): Promise<RepositoryFileListing>;
 }
 

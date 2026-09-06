@@ -17,10 +17,10 @@ export class LocalRepository implements Repository {
     if (!Number.isSafeInteger(maxTreeBytes) || maxTreeBytes <= 0) throw new Error('maxTreeBytes must be a positive integer');
   }
 
-  private async git(args: string[], maxBuffer = this.maxBytes + 1): Promise<Buffer> {
+  private async git(args: string[], maxBuffer = this.maxBytes + 1, signal?: AbortSignal): Promise<Buffer> {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
     const { stdout } = await execute('git', ['--no-replace-objects', '--literal-pathspecs', ...args], {
-      cwd: this.root, encoding: 'buffer', maxBuffer, timeout: 30_000,
+      cwd: this.root, encoding: 'buffer', maxBuffer, timeout: 30_000, ...(signal ? { signal } : {}),
       env: { ...env, GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', LC_ALL: 'C' },
     });
     return stdout;
@@ -32,20 +32,23 @@ export class LocalRepository implements Repository {
     }
   }
 
-  async readSource(commitSha: string, path: string): Promise<SourceRead> {
+  async readSource(commitSha: string, path: string, signal?: AbortSignal, maxBytes = this.maxBytes): Promise<SourceRead> {
     this.assertCommit(commitSha);
     assertRepositoryPath(path);
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) throw new Error('Invalid read byte limit');
+    const readLimit = Math.min(this.maxBytes, maxBytes);
+    signal?.throwIfAborted();
     try {
-      const entry = (await this.git(['ls-tree', '-z', commitSha, '--', path], 4096)).toString('utf8');
+      const entry = (await this.git(['ls-tree', '-z', commitSha, '--', path], 4096, signal)).toString('utf8');
       if (!entry) return { status: 'missing', reason: 'Path does not exist at commit' };
       const match = /^(\d{6}) ([^ ]+) [a-fA-F0-9]+\t([^\0]+)\0$/.exec(entry);
       if (!match || match[3] !== path) return { status: 'unsupported', reason: 'Git returned an unexpected tree entry' };
       if (match[1] === '120000') return { status: 'unsupported', reason: 'Symbolic-link sources are not followed' };
       if (match[2] !== 'blob') return { status: 'unsupported', reason: `Git object is ${match[2]}, not a blob` };
-      const size = Number((await this.git(['cat-file', '-s', `${commitSha}:${path}`], 1024)).toString('utf8').trim());
+      const size = Number((await this.git(['cat-file', '-s', `${commitSha}:${path}`], 1024, signal)).toString('utf8').trim());
       if (!Number.isSafeInteger(size)) return { status: 'unsupported', reason: 'Git returned an invalid blob size' };
-      if (size > this.maxBytes) return { status: 'truncated', reason: `Source exceeds ${this.maxBytes} byte read limit` };
-      const content = await this.git(['show', `${commitSha}:${path}`], this.maxBytes + 1);
+      if (size > readLimit) return { status: 'truncated', reason: `Source exceeds ${readLimit} byte read limit` };
+      const content = await this.git(['show', `${commitSha}:${path}`], readLimit + 1, signal);
       if (content.includes(0)) return { status: 'binary', reason: 'Source blob contains NUL bytes' };
       return { status: 'available', content: content.toString('utf8') };
     } catch (error) {

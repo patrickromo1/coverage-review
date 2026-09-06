@@ -56,3 +56,13 @@ it('reports oversized tree listings as truncated', async () => {
   const result = await new LocalRepository(root, 1_048_576, 20_000, 5).listFiles(head);
   expect(result).toEqual({ status: 'truncated', paths: [], reason: 'Git tree listing exceeds 5 byte limit' });
 });
+
+it('honors per-tool byte limits and cancellation without following a replaced working-tree symlink', async () => {
+  const repository = new LocalRepository(root);
+  await rm(join(root, 'src/value.ts'));
+  await symlink('/etc/passwd', join(root, 'src/value.ts'));
+  expect(await repository.readSource(head, 'src/value.ts', undefined, 3)).toMatchObject({ status: 'truncated' });
+  expect(await repository.readSource(head, 'src/value.ts', undefined, 4)).toEqual({ status: 'available', content: 'head' });
+  await expect(repository.readSource(head, 'src/value.ts', AbortSignal.abort())).rejects.toThrow();
+  expect(await repository.readSource(head, 'src/link.ts/secret')).toMatchObject({ status: 'missing' });
+});

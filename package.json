@@ -3,18 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "packageManager": "pnpm@11.25.0",
-  "bin": { "coverage-review": "dist/cli/main.js" },
+  "bin": {
+    "coverage-review": "dist/cli/main.js"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx src/cli/main.ts"
+    "dev": "tsx src/cli/main.ts",
+    "eval:offline": "tsx src/evals/main.ts --offline",
+    "eval:live": "tsx src/evals/main.ts --live"
   },
-  "dependencies": { "zod": "^4.0.0" },
+  "dependencies": {
+    "@openai/agents": "^0.17.0",
+    "openai": "^7.10.0",
+    "zod": "^4.0.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/node": "^22.0.0",

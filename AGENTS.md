@@ -47,7 +47,7 @@ Track finding precision, recall, false-positive rate, false-negative rate, and t
 
 Use Node.js, TypeScript, pnpm, Vitest, and Zod. Keep TypeScript strict. Add tests for new deterministic behavior; keep tests under `tests` and name them `*.test.ts`.
 
-Use `pnpm dev --help` for CLI usage, `pnpm build` to compile, `pnpm typecheck` for strict checks, `pnpm lint` for ESLint, and `pnpm test` for Vitest unit and integration tests. `pnpm test:watch` starts watch mode. The offline `runReviewFixture` API is available; eval scoring is not implemented yet.
+Use `pnpm dev --help` for CLI usage, `pnpm build` to compile, `pnpm typecheck` for strict checks, `pnpm lint` for ESLint, and `pnpm test` for Vitest unit and integration tests. `pnpm test:watch` starts watch mode. The offline `runReviewFixture` API and deterministic semantic scoring are available; run `pnpm eval:offline` for the versioned scripted suite.
 
 Milestone 2 evidence can be inspected with:
 
@@ -74,7 +74,7 @@ Accept all valid low/medium/high severity findings. Require changed-file paths, 
 
 Derive `needs-tests` for any accepted findings, `needs-review` for no findings with partial/failed analysis, and `adequate` only for complete scope and evidence with no findings. Missing, unsupported, binary, truncated, stale/unverifiable evidence, discovery diagnostics/additional uncertainty, only E2E/unclassified candidates, uncovered/unknown/missing changed-line measurements, rejected findings, incomplete scope, and agent limitations prevent adequate. Cosmetic changes without measurements remain needs-review under this conservative policy. Do not silently convert a budget limit, timeout, rejected proposal, or missing evidence to adequate.
 
-Collection/agent exceptions, timeout, and invalid output produce distinct structured failed results. Default limits are 50 findings, 4,000 characters per text field, and a 30-second total collection/agent deadline. Bounds are configurable and validated; do not silently truncate proposals. Cancellation is cooperative and must be backed by adapter resource limits. Offline proposal input has a 1 MiB cap. No real provider, tracing, network, publishing, Git mutation, or repository test execution belongs in review analysis.
+Collection/agent exceptions, timeout, and invalid output produce distinct structured failed results. Default limits are 50 findings, 4,000 characters per text field, and a 30-second total collection/agent deadline. Bounds are configurable and validated; do not silently truncate proposals. Cancellation is cooperative and must be backed by adapter resource limits. Offline proposal input has a 1 MiB cap. Provider SDK/network code belongs only in `src/agent/openai`; deterministic review analysis must not publish, mutate Git, or execute repository tests. Application tracing is metadata-only by default.
 
 ```sh
 pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --offline-review evals/fixtures/review/empty-proposal.json --json
@@ -82,3 +82,17 @@ pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --of
 ```
 
 Offline output must identify itself as scripted. Existing changed-file, `--file`, and `--evidence` modes remain available. Add deterministic unit tests and local integration fixtures for policy changes, and audit every new failure/uncertainty path for accidental adequate verdicts. Keep fixture data under `evals/fixtures`; never execute fixture repository code during analysis. See README for exact schema boundaries, limits, failure behavior, and remaining methodological limitations.
+
+## Milestone 4 provider and semantic evals
+
+Keep official SDK imports under `src/agent/openai`. `OpenAIReviewAgent` uses the injectable `SdkExecute` boundary, returns a proposal without verdict, and maps the plain strict SDK wire schema (nullable lowerLevelReason) back to domain validation. CLI and both eval modes use `executeReview`. Never weaken policy to improve model scores. Provider mode additionally requires full scoped evidence/source/candidate-test inspection before adequate.
+
+The executor owns `createEvidenceTools`: fixed resolved base/head commits, changed paths and discovered head-test paths only, no arbitrary imports/refs/roots, no new evidence IDs. Arguments/results are validated. Git blobs reject symlinks; tools never execute source or tests. Charge byte reservations before concurrent reads, retain unavailable/truncated states, enforce tool/turn/output limits, and reject new work after cancellation. Default bounds: 8 turns, 30 tools, 32 KiB blob/output, 2 MiB cumulative reservations/output, 200 lines, 4096 output tokens/turn, 256 KiB final proposal. SDK and HTTP retries are both zero. Keep raw SDK exceptions out of output. Distinguish authentication, rate-limit, provider-error, refusal, invalid-proposal, timeout, and budget-exhausted failures; never fall back to scripted execution.
+
+Live review requires `--review --provider openai --model <model-id>` and process environment `OPENAI_API_KEY`. It sends selected committed evidence to OpenAI. Existing modes/help require no credentials. Credentials are never command arguments or logged. Do not run paid live reviews/evals without explicit authorization.
+
+SDK trace export is disabled globally/per runner and processors removed; sensitive SDK logging is disabled. `ReviewTrace` exports nothing unless a callback/CLI `--trace-file` is supplied. Metadata contains stage/duration/status/counts/token usage only. A separate `--trace-sensitive` opt-in adds the bounded provider manifest. No SDK tracing is reenabled. Export failures are non-fatal and wait-bounded; custom non-cooperative exporters and synchronous code cannot be forcibly canceled. Keep source/prompts/tool/model text, secrets, and paths out of default captured spans. Test this with sentinels and mocked network transport.
+
+Semantic fixture snapshots under `evals/fixtures/semantic/v1` are isolated in-memory committed maps; `expected.json` and `scripts.json` must never enter live agent scope. Scoring uses accepted findings and deterministic location/phrase matching with one-to-one maximum matching. Duplicate findings are false positives. FPR uses predefined negative opportunities, not all findings; zero denominators return null. Keep failed/partial cases in aggregates and report unresolved negatives separately from true negatives. Report rejections/status/verdicts separately. Scripted success is not real-model quality. Record fixture/model/prompt/configuration/policy versions and safe available usage.
+
+Run `pnpm eval:offline` in addition to all four completion checks. Live eval is explicit: `pnpm eval:live --model <model-id> --fixtures boundary,cosmetic,transaction --repeats 1 --concurrency 1`. Selection is bounded to 20 IDs, repeats 1–5, concurrency 1–4, and per-run limits. See README for exact scoring denominators, trace opt-ins, cancellation limits, and full CLI examples. No GitHub/Actions publishing or multi-agent review orchestration belongs in this milestone.

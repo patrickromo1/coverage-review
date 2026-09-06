@@ -8,6 +8,12 @@ importers:
 
   .:
     dependencies:
+      '@openai/agents':
+        specifier: ^0.17.0
+        version: 0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)
+      openai:
+        specifier: ^7.10.0
+        version: 7.10.0(ws@8.21.3)(zod@4.5.4)
       zod:
         specifier: ^4.0.0
         version: 4.5.4
@@ -253,12 +259,43 @@ packages:
   '@jridgewell/sourcemap-codec@1.6.0':
     resolution: {integrity: sha512-T7jf+5zgsZHwNJ4lvQ7/aezbyk0nNX+zJVWpmHA7VYsEx7a7qr5Rg5IbtJFqkgze5Y2sruq1RUY8Q837Od7iFw==}
 
+  '@modelcontextprotocol/client@2.0.0':
+    resolution: {integrity: sha512-8f1OghQ2rjzIOfqgUCP+8GiUWqRs89njoWLNqAe8kWmDePv3s1fZXseej+QXemssEuuOvLLmLO/kqM3IQHtISw==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/core@2.0.0':
+    resolution: {integrity: sha512-pJCEwGG7Lfr/+PQp9ZTwKXNeO5wzbfKL7H3MYpCorM4oFBoQrdjnBgEoqG+RjhsvS1FKrDbKux+M1HhlnGWqcA==}
+    engines: {node: '>=20'}
+
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
     engines: {node: ^22.20 || ^24.12 || >=25}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+
+  '@openai/agents-core@0.17.0':
+    resolution: {integrity: sha512-lyoF860313ypeKSPRsdmyNK1ypF8/ocShN2EwCcKUpF4VvRWa5AUVKL6VXO/keQMwNPZw5SACAf1siU9uMvUNg==}
+    peerDependencies:
+      zod: ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
+  '@openai/agents-openai@0.17.0':
+    resolution: {integrity: sha512-pMqXK7YtNI3U9KLAZIt+WzB9AReOWt/kiY8nhc9eXWcIZIpkmrzFd6dQgBpGLKWPfvEfgRCDeIVfHpWoXr7hEg==}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@openai/agents-realtime@0.17.0':
+    resolution: {integrity: sha512-spHgDIaWQIOJjwowjBTo0X9Jn3+CGX9fWgsyRUilsQ8SsnNrAre2km6sr8HwFnRiyQC0XpmTccieyfuXmzMfXg==}
+    peerDependencies:
+      zod: ^4.0.0
+
+  '@openai/agents@0.17.0':
+    resolution: {integrity: sha512-yzJ3tfHLO/6um9wsZ5IzEAQDaY7VcDBMxOPq7IgBaJkEPHrGX0vIXWGL0aqyreikHW4OpVmWwCaBBIOxxILXlA==}
+    peerDependencies:
+      zod: ^4.0.0
 
   '@rollup/rollup-android-arm-eabi@4.63.1':
     resolution: {integrity: sha512-UZ8sUxPTiHWYX9QNdJedb1kDZSpS1t/VPWBWGSgqHNi9w3Cu6IXvu2mzbhiTiPvtrqgTQJ+zqiAq2iPIPilpaQ==}
@@ -398,6 +435,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@standard-schema/spec@1.1.0':
+    resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
@@ -412,6 +452,9 @@ packages:
 
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@typescript-eslint/eslint-plugin@8.69.0':
     resolution: {integrity: sha512-t5jQTKPIgVW1PE6dR6H6Qz5gm8zjMlX5/2gRaOGd9eO6V7J+tQc6iWKukEe7dY8u9HyYasQ0yfF0/FSSTEO2gA==}
@@ -651,6 +694,14 @@ packages:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
 
+  eventsource-parser@3.1.1:
+    resolution: {integrity: sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==}
+    engines: {node: '>=18.0.0'}
+
+  eventsource@3.0.7:
+    resolution: {integrity: sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA==}
+    engines: {node: '>=18.0.0'}
+
   expect-type@1.4.0:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
@@ -732,6 +783,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  jose@6.2.11:
+    resolution: {integrity: sha512-A5NPn7g8EAzGU3IzRs+Yiq8K5n3ypYS75M5+KKiVHdUexfpWK1kP4ZMq7QnTGDoMj6TJ1dtcEJjW60yZDXS4hg==}
+
   js-tokens@9.0.1:
     resolution: {integrity: sha512-mxa9E9ITFOt0ban3j6L5MpjwegGz6lBQmM1IJkWeBZGcMxto50+eWdjC/52xDbS2vy0k7vIMK0Fe2wfL9OQSpQ==}
 
@@ -786,6 +840,30 @@ packages:
   natural-compare@1.4.0:
     resolution: {integrity: sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw==}
 
+  openai@7.10.0:
+    resolution: {integrity: sha512-sn9t2Kls7O52PwuF9BUTYNu4Gk/r0lXJyrgaNht4TNRlZFb3dJIGO0RciSgjARGCBRtWjySubAQFJttlzUvGQQ==}
+    engines: {node: '>=22.0.0'}
+    peerDependencies:
+      '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
+      '@smithy/hash-node': '>=4.3.0 <5'
+      '@smithy/signature-v4': '>=5.4.0 <6'
+      undici: '>=5 <9'
+      ws: ^8.21.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@aws-sdk/credential-provider-node':
+        optional: true
+      '@smithy/hash-node':
+        optional: true
+      '@smithy/signature-v4':
+        optional: true
+      undici:
+        optional: true
+      ws:
+        optional: true
+      zod:
+        optional: true
+
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
     engines: {node: '>= 0.8.0'}
@@ -823,6 +901,10 @@ packages:
   picomatch@4.0.7:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
+
+  pkce-challenge@5.0.1:
+    resolution: {integrity: sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ==}
+    engines: {node: '>=16.20.0'}
 
   postcss@8.5.28:
     resolution: {integrity: sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A==}
@@ -1024,6 +1106,18 @@ packages:
     resolution: {integrity: sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==}
     engines: {node: '>=0.10.0'}
 
+  ws@8.21.3:
+    resolution: {integrity: sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
@@ -1175,8 +1269,88 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.6.0': {}
 
+  '@modelcontextprotocol/client@2.0.0':
+    dependencies:
+      '@modelcontextprotocol/core': 2.0.0
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.1.1
+      jose: 6.2.11
+      pkce-challenge: 5.0.1
+      zod: 4.5.4
+    optional: true
+
+  '@modelcontextprotocol/core@2.0.0':
+    dependencies:
+      zod: 4.5.4
+    optional: true
+
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true
+
+  '@openai/agents-core@0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      debug: 4.4.3(supports-color@7.2.0)
+      openai: 7.10.0(ws@8.21.3)(zod@4.5.4)
+    optionalDependencies:
+      '@modelcontextprotocol/client': 2.0.0
+      zod: 4.5.4
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - supports-color
+      - undici
+      - ws
+
+  '@openai/agents-openai@0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)':
+    dependencies:
+      '@openai/agents-core': 0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)
+      debug: 4.4.3(supports-color@7.2.0)
+      openai: 7.10.0(ws@8.21.3)(zod@4.5.4)
+      zod: 4.5.4
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - supports-color
+      - undici
+      - ws
+
+  '@openai/agents-realtime@0.17.0(supports-color@7.2.0)(zod@4.5.4)':
+    dependencies:
+      '@openai/agents-core': 0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)
+      '@types/ws': 8.18.1
+      debug: 4.4.3(supports-color@7.2.0)
+      ws: 8.21.3
+      zod: 4.5.4
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - bufferutil
+      - supports-color
+      - undici
+      - utf-8-validate
+
+  '@openai/agents@0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)':
+    dependencies:
+      '@openai/agents-core': 0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)
+      '@openai/agents-openai': 0.17.0(supports-color@7.2.0)(ws@8.21.3)(zod@4.5.4)
+      '@openai/agents-realtime': 0.17.0(supports-color@7.2.0)(zod@4.5.4)
+      debug: 4.4.3(supports-color@7.2.0)
+      openai: 7.10.0(ws@8.21.3)(zod@4.5.4)
+      zod: 4.5.4
+    transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
+      - bufferutil
+      - supports-color
+      - undici
+      - utf-8-validate
+      - ws
 
   '@rollup/rollup-android-arm-eabi@4.63.1':
     optional: true
@@ -1253,6 +1427,8 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.63.1':
     optional: true
 
+  '@standard-schema/spec@1.1.0': {}
+
   '@types/chai@5.2.3':
     dependencies:
       '@types/deep-eql': 4.0.2
@@ -1267,6 +1443,10 @@ snapshots:
   '@types/node@22.20.1':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.20.1
 
   '@typescript-eslint/eslint-plugin@8.69.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3))(eslint@9.39.5(supports-color@7.2.0))(supports-color@7.2.0)(typescript@5.9.3)':
     dependencies:
@@ -1583,6 +1763,14 @@ snapshots:
 
   esutils@2.0.3: {}
 
+  eventsource-parser@3.1.1:
+    optional: true
+
+  eventsource@3.0.7:
+    dependencies:
+      eventsource-parser: 3.1.1
+    optional: true
+
   expect-type@1.4.0: {}
 
   fast-deep-equal@3.1.3: {}
@@ -1641,6 +1829,9 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  jose@6.2.11:
+    optional: true
+
   js-tokens@9.0.1: {}
 
   js-yaml@4.3.2:
@@ -1688,6 +1879,11 @@ snapshots:
 
   natural-compare@1.4.0: {}
 
+  openai@7.10.0(ws@8.21.3)(zod@4.5.4):
+    optionalDependencies:
+      ws: 8.21.3
+      zod: 4.5.4
+
   optionator@0.9.4:
     dependencies:
       deep-is: 0.1.4
@@ -1720,6 +1916,9 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
+
+  pkce-challenge@5.0.1:
+    optional: true
 
   postcss@8.5.28:
     dependencies:
@@ -1924,6 +2123,8 @@ snapshots:
       stackback: 0.0.2
 
   word-wrap@1.2.5: {}
+
+  ws@8.21.3: {}
 
   yocto-queue@0.1.0: {}
 

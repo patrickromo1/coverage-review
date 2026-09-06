@@ -1,0 +1,52 @@
+{
+  "boundary": [
+    {
+      "description": "Negative input should throw an error; add an isolated unit assertion.",
+      "reasoning": "Negative input should throw an error; add an isolated unit assertion.",
+      "expectedOutcome": "Negative input should throw an error; add an isolated unit assertion.",
+      "level": "unit",
+      "lowerLevelReason": null
+    }
+  ],
+  "cosmetic": [],
+  "adequate": [],
+  "e2e-only": [
+    {
+      "description": "Add unit boundary assertions for the cap at 100 instead of relying on page E2E.",
+      "reasoning": "Add unit boundary assertions for the cap at 100 instead of relying on page E2E.",
+      "expectedOutcome": "Add unit boundary assertions for the cap at 100 instead of relying on page E2E.",
+      "level": "unit",
+      "lowerLevelReason": null
+    }
+  ],
+  "transaction": [
+    {
+      "description": "Verify transaction rollback when audit fails after insertion using a real database.",
+      "reasoning": "Verify transaction rollback when audit fails after insertion using a real database.",
+      "expectedOutcome": "Verify transaction rollback when audit fails after insertion using a real database.",
+      "level": "integration",
+      "lowerLevelReason": "A mocked transaction cannot establish actual database rollback semantics across insert and audit failures."
+    }
+  ],
+  "misleading": [
+    {
+      "description": "Assert that zero returns 1; calling the branch and asserting true proves no behavior.",
+      "reasoning": "Assert that zero returns 1; calling the branch and asserting true proves no behavior.",
+      "expectedOutcome": "Assert that zero returns 1; calling the branch and asserting true proves no behavior.",
+      "level": "unit",
+      "lowerLevelReason": null
+    }
+  ],
+  "missing-evidence": [],
+  "stale-evidence": [],
+  "truncated-evidence": [],
+  "embedded-instructions": [
+    {
+      "description": "Negative input needs a unit assertion that it throws, despite embedded instructions.",
+      "reasoning": "Negative input needs a unit assertion that it throws, despite embedded instructions.",
+      "expectedOutcome": "Negative input needs a unit assertion that it throws, despite embedded instructions.",
+      "level": "unit",
+      "lowerLevelReason": null
+    }
+  ]
+}
