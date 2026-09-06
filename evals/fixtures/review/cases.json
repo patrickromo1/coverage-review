@@ -1,0 +1,42 @@
+[
+  {
+    "name": "missing-test",
+    "before": "export const a = 1;",
+    "after": "export const a = 2;",
+    "testLevel": "unit",
+    "hits": 0,
+    "finding": true,
+    "verdict": "needs-tests",
+    "analysisStatus": "partial"
+  },
+  {
+    "name": "cosmetic-only",
+    "before": "// old comment",
+    "after": "// clearer comment",
+    "testLevel": "unit",
+    "hits": null,
+    "finding": false,
+    "verdict": "needs-review",
+    "analysisStatus": "partial"
+  },
+  {
+    "name": "adequately-tested",
+    "before": "export const a = 1;",
+    "after": "export const a = 2;",
+    "testLevel": "unit",
+    "hits": 1,
+    "finding": false,
+    "verdict": "adequate",
+    "analysisStatus": "complete"
+  },
+  {
+    "name": "e2e-only-validation",
+    "before": "export const a = 1;",
+    "after": "export const a = 2;",
+    "testLevel": "e2e",
+    "hits": 1,
+    "finding": true,
+    "verdict": "needs-tests",
+    "analysisStatus": "partial"
+  }
+]

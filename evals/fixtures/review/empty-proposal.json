@@ -1,0 +1,8 @@
+{
+  "schemaVersion": "1",
+  "summary": "Offline plumbing check only; no behavioral review has been performed.",
+  "analysisStatus": "partial",
+  "reviewedFiles": [],
+  "limitations": ["No analysis has been supplied."],
+  "findings": []
+}

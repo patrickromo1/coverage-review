@@ -47,7 +47,7 @@ Track finding precision, recall, false-positive rate, false-negative rate, and t
 
 Use Node.js, TypeScript, pnpm, Vitest, and Zod. Keep TypeScript strict. Add tests for new deterministic behavior; keep tests under `tests` and name them `*.test.ts`.
 
-Use `pnpm dev --help` for CLI usage, `pnpm build` to compile, `pnpm typecheck` for strict checks, `pnpm lint` for ESLint, and `pnpm test` for Vitest unit and integration tests. `pnpm test:watch` starts watch mode. Eval tooling is not implemented yet.
+Use `pnpm dev --help` for CLI usage, `pnpm build` to compile, `pnpm typecheck` for strict checks, `pnpm lint` for ESLint, and `pnpm test` for Vitest unit and integration tests. `pnpm test:watch` starts watch mode. The offline `runReviewFixture` API is available; eval scoring is not implemented yet.
 
 Milestone 2 evidence can be inspected with:
 
@@ -63,3 +63,22 @@ Evidence reads Git objects at the reviewed commits, never working-tree source. T
 Before completing a task, run the project’s type check, lint, unit/integration tests, and production build using `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `pnpm build`. If a check is unavailable, state that explicitly rather than claiming it passed.
 
 Fix failures caused by the change. Explain meaningful architectural decisions and validation limitations.
+
+## Milestone 3 review execution
+
+Use `executeReview` in `src/core/review/execute-review.ts` for every review entrypoint. It collects milestone-2 evidence, generates commit-bound evidence references, calls an injected `ReviewAgent`, validates its untrusted proposal and findings, applies deterministic policy, and validates `ReviewResult`. Keep formatting in `format-review.ts`. CLI and `src/evals/run-fixture.ts` share this executor.
+
+Keep provider-independent `ReviewAgent` and proposal contracts under `src/agent`; agents return proposals without verdicts. `ScriptedReviewAgent` is explicitly offline. Keep acceptance and verdict logic under `src/core/review`. The legacy `CoverageReviewSchema` is not the executor contract. Result provenance must exclude source, prompts, raw exceptions, and provider metadata.
+
+Accept all valid low/medium/high severity findings. Require changed-file paths, changed lines on valid base/head sides, file-local evidence references including a diff reference, and discovered candidate paths for cited tests. Rename base locations use the canonical new path. Require a lower-level justification for integration/E2E recommendations. Reference checks cannot prove semantic claims or justifications.
+
+Derive `needs-tests` for any accepted findings, `needs-review` for no findings with partial/failed analysis, and `adequate` only for complete scope and evidence with no findings. Missing, unsupported, binary, truncated, stale/unverifiable evidence, discovery diagnostics/additional uncertainty, only E2E/unclassified candidates, uncovered/unknown/missing changed-line measurements, rejected findings, incomplete scope, and agent limitations prevent adequate. Cosmetic changes without measurements remain needs-review under this conservative policy. Do not silently convert a budget limit, timeout, rejected proposal, or missing evidence to adequate.
+
+Collection/agent exceptions, timeout, and invalid output produce distinct structured failed results. Default limits are 50 findings, 4,000 characters per text field, and a 30-second total collection/agent deadline. Bounds are configurable and validated; do not silently truncate proposals. Cancellation is cooperative and must be backed by adapter resource limits. Offline proposal input has a 1 MiB cap. No real provider, tracing, network, publishing, Git mutation, or repository test execution belongs in review analysis.
+
+```sh
+pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --offline-review evals/fixtures/review/empty-proposal.json --json
+pnpm dev --repo /path/to/repo --base <full-base-sha> --head <full-head-sha> --offline-review /path/to/proposal.json --lcov /path/to/lcov.info --coverage-commit <full-head-sha> --max-findings 25 --max-text-length 2000 --timeout-ms 10000
+```
+
+Offline output must identify itself as scripted. Existing changed-file, `--file`, and `--evidence` modes remain available. Add deterministic unit tests and local integration fixtures for policy changes, and audit every new failure/uncertainty path for accidental adequate verdicts. Keep fixture data under `evals/fixtures`; never execute fixture repository code during analysis. See README for exact schema boundaries, limits, failure behavior, and remaining methodological limitations.
