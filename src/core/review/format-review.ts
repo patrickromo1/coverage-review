@@ -5,7 +5,7 @@ export function formatReviewJson(result: ReviewResult): string {
 }
 export function formatReview(result: ReviewResult): string {
   return [
-    `${result.provenance.agentMode === 'scripted' ? 'OFFLINE SCRIPTED REVIEW' : 'COVERAGE REVIEW'}: ${result.verdict} (${result.analysisStatus})`,
+    `${result.provenance.agentMode === 'scripted' ? 'OFFLINE SCRIPTED REVIEW' : 'PROVIDER COVERAGE REVIEW'}: ${result.verdict} (${result.analysisStatus})`,
     result.summary,
     `Scope: ${result.scope.reviewedFiles.length}/${result.scope.changedFiles.length} changed files`,
     ...result.findings.map((finding) => `- [${finding.severity}] ${finding.file}:${finding.line} (${finding.side}): ${finding.description} [${finding.suggestedTestLevel}]`),

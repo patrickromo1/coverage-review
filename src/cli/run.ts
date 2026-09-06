@@ -1,3 +1,6 @@
+import { appendFile } from 'node:fs/promises';
+import { OpenAIConfigSchema, OpenAIReviewAgent, type SdkExecute } from '../agent/openai/openai-review-agent.js';
+import { ReviewTrace } from '../core/review/trace.js';
 import { open } from 'node:fs/promises';
 import { ScriptedReviewAgent } from '../agent/scripted-review-agent.js';
 import { executeReview } from '../core/review/execute-review.js';
@@ -10,6 +13,10 @@ export const usage = `Usage: coverage-review --base <SHA> --head <SHA> [--repo <
        coverage-review --base <SHA> --head <SHA> [--repo <path>] --evidence [--lcov <path>] [--coverage-commit <SHA>]
 
        coverage-review --base <SHA> --head <SHA> --offline-review <proposal.json> [--json] [--lcov <path>] [--coverage-commit <SHA>]
+       coverage-review --base <SHA> --head <SHA> --review --provider openai --model <model-id> [--json]
+       Provider limits: [--max-turns <n>] [--max-tool-calls <n>] [--max-read-bytes <n>] [--max-tool-bytes <n>] [--max-output-tokens <n>]
+       Tracing: [--trace-file <jsonl>] [--trace-sensitive] (export disabled by default)
+       Live review sends selected committed repository evidence to OpenAI; requires OPENAI_API_KEY.
        Review limits: [--max-findings <n>] [--max-text-length <n>] [--timeout-ms <n>]
 
 Offline review replays a supplied scripted proposal; it does not perform model analysis.
@@ -22,6 +29,7 @@ export async function runCli(
   args: string[],
   createDiff: (root: string) => DiffProvider,
   createEvidence?: (options: { readonly root: string; readonly lcov?: string; readonly coverageCommit?: string }) => EvidenceCollectorDependencies,
+  sdkExecute?: SdkExecute,
 ): Promise<string> {
   const { values } = parseArgs({
     args,
@@ -31,6 +39,10 @@ export async function runCli(
       evidence: { type: 'boolean' }, lcov: { type: 'string' }, 'coverage-commit': { type: 'string' },
       'offline-review': { type: 'string' }, json: { type: 'boolean' },
       'max-findings': { type: 'string' }, 'max-text-length': { type: 'string' }, 'timeout-ms': { type: 'string' },
+      review: { type: 'boolean' }, provider: { type: 'string' }, model: { type: 'string' },
+      'max-turns': { type: 'string' }, 'max-tool-calls': { type: 'string' }, 'max-read-bytes': { type: 'string' },
+      'max-tool-bytes': { type: 'string' }, 'max-output-tokens': { type: 'string' },
+      'trace-file': { type: 'string' }, 'trace-sensitive': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     strict: true,
@@ -38,26 +50,41 @@ export async function runCli(
   });
   if (values.help) return usage;
   if (!values.base || !values.head) throw new Error('Both --base and --head are required. Use --help for usage.');
+  const live = !!values.review;
+  const providerFlags = [values.provider, values.model, values['max-turns'], values['max-tool-calls'], values['max-read-bytes'], values['max-tool-bytes'], values['max-output-tokens']];
+  if (!live && providerFlags.some((value) => value !== undefined)) throw new Error('Provider configuration requires explicit --review');
+  if (live && (values.provider !== 'openai' || !values.model)) throw new Error('--review requires --provider openai and --model <model-id>');
+  if (values['trace-sensitive'] && !values['trace-file']) throw new Error('--trace-sensitive requires --trace-file');
   const offline = values['offline-review'] !== undefined;
-  if ([values.file !== undefined, !!values.evidence, offline].filter(Boolean).length > 1) throw new Error('--file, --evidence, and --offline-review are mutually exclusive');
-  if (!offline && (values.json || values['max-findings'] !== undefined || values['max-text-length'] !== undefined || values['timeout-ms'] !== undefined)) throw new Error('Review formatting and limits require --offline-review');
-  if ((values.lcov !== undefined || values['coverage-commit'] !== undefined) && !values.evidence && !offline) {
+  if ([values.file !== undefined, !!values.evidence, offline, live].filter(Boolean).length > 1) throw new Error('--file, --evidence, --offline-review, and --review are mutually exclusive');
+  if (!offline && !live && (values.json || values['max-findings'] !== undefined || values['max-text-length'] !== undefined || values['timeout-ms'] !== undefined)) throw new Error('Review formatting and limits require --offline-review');
+  if ((values.lcov !== undefined || values['coverage-commit'] !== undefined) && !values.evidence && !offline && !live) {
     throw new Error('--lcov and --coverage-commit require --evidence or --offline-review');
   }
-  if (values.evidence || offline) {
+  if (values['trace-file'] && !offline && !live) throw new Error('Tracing requires a review mode');
+  const config = live ? OpenAIConfigSchema.parse({ model: values.model,
+    ...(values['max-turns'] === undefined ? {} : { maxTurns: Number(values['max-turns']) }),
+    ...(values['max-tool-calls'] === undefined ? {} : { maxToolCalls: Number(values['max-tool-calls']) }),
+    ...(values['max-read-bytes'] === undefined ? {} : { maxReadBytes: Number(values['max-read-bytes']) }),
+    ...(values['max-tool-bytes'] === undefined ? {} : { maxToolBytes: Number(values['max-tool-bytes']) }),
+    ...(values['max-output-tokens'] === undefined ? {} : { maxOutputTokens: Number(values['max-output-tokens']) }),
+  }) : undefined;
+  if (values.evidence || offline || live) {
     if (!createEvidence) throw new Error('Evidence mode is unavailable');
     const options = {
       root: values.repo,
       ...(values.lcov === undefined ? {} : { lcov: values.lcov }),
       ...(values['coverage-commit'] === undefined ? {} : { coverageCommit: values['coverage-commit'] }),
     };
-    if (offline) {
-      const proposal = await readScriptedProposal(values['offline-review']!);
-      const result = await executeReview(values.base, values.head, createEvidence(options), new ScriptedReviewAgent(proposal), {
+    if (offline || live) {
+      const trace = new ReviewTrace(values['trace-file'] ? { exportSpan: async (span) => { await appendFile(values['trace-file']!, `${JSON.stringify(span)}\n`, { mode: 0o600 }); }, includeSensitiveContent: !!values['trace-sensitive'] } : {});
+      const agent = offline ? new ScriptedReviewAgent(await readScriptedProposal(values['offline-review']!))
+        : new OpenAIReviewAgent(config!, sdkExecute ?? (async (request) => (await import('../agent/openai/sdk-execution.js')).executeOpenAISdk(request)), trace);
+      const result = await executeReview(values.base, values.head, createEvidence(options), agent, {
         ...(values['max-findings'] === undefined ? {} : { maxFindings: Number(values['max-findings']) }),
         ...(values['max-text-length'] === undefined ? {} : { maxTextLength: Number(values['max-text-length']) }),
         ...(values['timeout-ms'] === undefined ? {} : { timeoutMs: Number(values['timeout-ms']) }),
-      });
+      }, trace);
       return values.json ? formatReviewJson(result) : formatReview(result);
     }
     return `${JSON.stringify(await collectEvidence(values.base, values.head, createEvidence(options)), null, 2)}\n`;

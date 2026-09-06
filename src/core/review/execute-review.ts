@@ -1,3 +1,6 @@
+import { ReviewTrace } from './trace.js';
+import { AgentFailure } from '../../agent/failure.js';
+import { createEvidenceTools } from './evidence-tools.js';
 import { proposalSchema, ReviewLimitsSchema, type ReviewAgent, type ReviewLimits } from '../../agent/review-agent.js';
 import { collectEvidence, type EvidenceCollectorDependencies } from '../evidence/collect-evidence.js';
 import { evidenceLimitations, rejectionReason, verdictFor } from './policy.js';
@@ -23,10 +26,11 @@ async function withinDeadline<T>(operation: () => Promise<T>, remainingMs: numbe
 
 export async function executeReview(
   baseSha: string, headSha: string, dependencies: EvidenceCollectorDependencies,
-  agent: ReviewAgent, options: Partial<ReviewLimits> = {},
+  agent: ReviewAgent, options: Partial<ReviewLimits> = {}, trace = new ReviewTrace(),
 ): Promise<ReviewResult> {
   const limits = ReviewLimitsSchema.parse(options);
-  const deadline = Date.now() + limits.timeoutMs;
+  const started = Date.now();
+  const deadline = started + limits.timeoutMs;
   const controller = new AbortController();
   const result: ReviewResult = {
     schemaVersion: '1', summary: 'Review could not be completed.', findings: [], verdict: 'needs-review', analysisStatus: 'failed',
@@ -34,16 +38,36 @@ export async function executeReview(
     limitations: [], rejectedFindings: [], evidenceReferences: [],
     provenance: { executorVersion: '1', policyVersion: '1', evidenceSchemaVersion: '1', agentMode: agent.mode, limits },
   };
+  let toolSession: ReturnType<typeof createEvidenceTools> | undefined;
   let stage: 'evidence' | 'agent' = 'evidence';
   try {
-    const evidence = await withinDeadline(() => collectEvidence(baseSha, headSha, dependencies), deadline - Date.now(), controller);
-    result.scope = { ...evidence.comparison, resolved: true, changedFiles: evidence.files.map((file) => file.path), reviewedFiles: [] };
-    result.evidenceReferences = evidenceReferences(evidence);
-    result.limitations = evidenceLimitations(evidence);
+    const evidenceStarted = Date.now();
+    let evidence;
+    try {
+      evidence = await withinDeadline(() => collectEvidence(baseSha, headSha, dependencies), deadline - Date.now(), controller);
+      result.scope = { ...evidence.comparison, resolved: true, changedFiles: evidence.files.map((file) => file.path), reviewedFiles: [] };
+      result.evidenceReferences = evidenceReferences(evidence);
+      result.limitations = evidenceLimitations(evidence);
+      await trace.emit('evidence', evidenceStarted, result.limitations.length ? 'partial' : 'ok', { files: evidence.files.length });
+    } catch (error) {
+      await trace.emit('evidence', evidenceStarted, 'error', { files: evidence?.files.length ?? 0 });
+      throw error;
+    }
     stage = 'agent';
-    const raw = await withinDeadline(() => agent.propose({
-      evidence: structuredClone(evidence), references: structuredClone(result.evidenceReferences), limits: { ...limits }, signal: controller.signal,
-    }), deadline - Date.now(), controller);
+    toolSession = createEvidenceTools(evidence, result.evidenceReferences, dependencies.repository, controller.signal, agent.evidenceLimits);
+    const agentStarted = Date.now();
+    let raw: unknown;
+    try {
+      raw = await withinDeadline(() => agent.propose({
+        evidence: structuredClone(evidence), references: structuredClone(result.evidenceReferences), limits: { ...limits }, signal: controller.signal, tools: toolSession!.tools,
+      }), deadline - Date.now(), controller);
+      await trace.emit('agent', agentStarted, toolSession.stats().incomplete ? 'partial' : 'ok', { toolCalls: toolSession.stats().calls, readBytes: toolSession.stats().bytes });
+    } catch (error) {
+      await trace.emit('agent', agentStarted, 'error', { toolCalls: toolSession.stats().calls, readBytes: toolSession.stats().bytes });
+      throw error;
+    }
+    if (agent.mode === 'provider' && !toolSession.stats().inspectionComplete) result.limitations.push({ code: 'agent-incomplete', message: 'Provider did not fully inspect changed-file evidence, source, and every discovered candidate test.' });
+    if (toolSession.stats().incomplete) result.limitations.push({ code: 'evidence-incomplete', message: 'Tool inspection was unavailable, truncated, invalid, or exhausted a budget.' });
     const parsed = proposalSchema(limits).safeParse(raw);
     if (!parsed.success) {
       // Do not echo arbitrary provider text, source, exception messages, or prompts.
@@ -74,9 +98,12 @@ export async function executeReview(
     result.verdict = verdictFor(result.findings.length, result.analysisStatus);
   } catch (error) {
     result.limitations.push({
-      code: error instanceof ReviewTimeout ? 'timeout' : stage === 'evidence' ? 'evidence-unavailable' : 'agent-failure',
+      code: error instanceof ReviewTimeout ? 'timeout' : stage === 'evidence' ? 'evidence-unavailable' : error instanceof AgentFailure ? error.code : 'agent-failure',
       message: error instanceof ReviewTimeout ? `Review deadline exceeded during ${stage}.` : `${stage === 'evidence' ? 'Evidence collection' : 'Agent execution'} failed.`,
     });
+  } finally {
+    controller.abort(); toolSession?.close();
+    await trace.emit('review', started, result.analysisStatus === 'failed' ? 'error' : result.analysisStatus === 'partial' ? 'partial' : 'ok', { findings: result.findings.length, files: result.scope.changedFiles.length });
   }
   return ReviewResultSchema.parse(result);
 }

@@ -1,3 +1,4 @@
+import type { EvidenceTools, EvidenceToolLimits } from '../core/review/evidence-tools.js';
 import { z } from 'zod';
 import { CoverageFindingSchema } from '../core/review/schema.js';
 import type { CoverageEvidence } from '../core/evidence/schema.js';
@@ -39,9 +40,11 @@ export interface ReviewAgentRequest {
   readonly references: readonly EvidenceReference[];
   readonly limits: ReviewLimits;
   readonly signal: AbortSignal;
+  readonly tools?: EvidenceTools;
 }
 /** Untrusted proposal only. No verdict, repository tools, or provider SDK types. */
 export interface ReviewAgent {
   readonly mode: 'scripted' | 'provider';
+  readonly evidenceLimits?: Partial<EvidenceToolLimits>;
   propose(request: ReviewAgentRequest): Promise<unknown>;
 }

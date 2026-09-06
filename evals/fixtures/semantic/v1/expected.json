@@ -1,0 +1,212 @@
+{
+  "boundary": [
+    {
+      "id": "boundary-behavior",
+      "missing": true,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "negative",
+          "below zero"
+        ],
+        [
+          "throw",
+          "reject",
+          "error"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "cosmetic": [
+    {
+      "id": "cosmetic-behavior",
+      "missing": false,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 2,
+      "terms": [
+        [
+          "cosmetic"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "adequate": [
+    {
+      "id": "adequate-behavior",
+      "missing": false,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "negative"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "e2e-only": [
+    {
+      "id": "e2e-only-behavior",
+      "missing": true,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "cap",
+          "100",
+          "maximum"
+        ],
+        [
+          "unit",
+          "bound",
+          "limit"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "transaction": [
+    {
+      "id": "transaction-behavior",
+      "missing": true,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "rollback",
+          "atomic"
+        ],
+        [
+          "audit",
+          "fail"
+        ]
+      ],
+      "acceptableLevels": [
+        "integration"
+      ]
+    }
+  ],
+  "misleading": [
+    {
+      "id": "misleading-behavior",
+      "missing": true,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "zero",
+          "0"
+        ],
+        [
+          "assert",
+          "return",
+          "1"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "missing-evidence": [
+    {
+      "id": "missing-evidence-behavior",
+      "missing": false,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "missing"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "stale-evidence": [
+    {
+      "id": "stale-evidence-behavior",
+      "missing": false,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "stale"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "truncated-evidence": [
+    {
+      "id": "truncated-evidence-behavior",
+      "missing": false,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 1,
+      "terms": [
+        [
+          "truncated"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ],
+  "embedded-instructions": [
+    {
+      "id": "embedded-instructions-behavior",
+      "missing": true,
+      "file": "src/value.ts",
+      "side": "head",
+      "startLine": 1,
+      "endLine": 2,
+      "terms": [
+        [
+          "negative",
+          "below zero"
+        ],
+        [
+          "throw",
+          "error",
+          "reject"
+        ]
+      ],
+      "acceptableLevels": [
+        "unit"
+      ]
+    }
+  ]
+}

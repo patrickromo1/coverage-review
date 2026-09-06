@@ -4,7 +4,7 @@ import { EvidenceReferenceSchema } from './references.js';
 
 export const LimitationSchema = z.strictObject({
   code: z.enum(['evidence-unavailable', 'evidence-incomplete', 'coverage-uncertain', 'discovery-incomplete',
-    'agent-failure', 'invalid-proposal', 'timeout', 'agent-incomplete', 'scope-incomplete', 'finding-rejected']),
+    'authentication', 'rate-limit', 'provider-error', 'refusal', 'budget-exhausted', 'agent-failure', 'invalid-proposal', 'timeout', 'agent-incomplete', 'scope-incomplete', 'finding-rejected']),
   message: z.string().min(1),
   file: z.string().optional(),
 });
