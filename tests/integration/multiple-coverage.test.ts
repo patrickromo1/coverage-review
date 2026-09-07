@@ -38,8 +38,17 @@ it('bounds aggregate failed-read reservations and rejects symlink parent directo
   const result = await new MultipleCoverageProvider(root, [
     { path: 'alias/report', format: 'lcov' }, { path: 'missing', format: 'lcov' }, { path: 'third', format: 'lcov' },
   ]).getCoverage({ headSha });
-  expect(result.reports?.map((report) => report.status)).toEqual(['unsupported', 'unsupported', 'truncated']);
+  expect(result.status).toBe('truncated');
+  expect(result.reports?.map((report) => report.status)).toEqual(['unsupported', 'unavailable', 'truncated']);
   await expect(new MultipleCoverageProvider(root, []).getCoverage({ headSha, signal: AbortSignal.abort() })).rejects.toThrow();
+});
+it('preserves unavailable and unsupported status when every configured report fails', async () => {
+  const missing = await new MultipleCoverageProvider(root, [{ path: 'missing.info', format: 'lcov' }]).getCoverage({ headSha });
+  expect(missing).toMatchObject({ status: 'unavailable', reason: 'All coverage reports were unavailable' });
+  expect(missing.reports?.[0]).toMatchObject({ status: 'unavailable', diagnostics: ['Coverage input unavailable'] });
+  await writeFile(join(root, 'bad.info'), 'MALFORMED');
+  const malformed = await new MultipleCoverageProvider(root, [{ path: 'bad.info', format: 'lcov' }]).getCoverage({ headSha });
+  expect(malformed).toMatchObject({ status: 'unsupported', reason: 'All coverage reports were invalid or unsafe' });
 });
 it('loads the checked-in Coverage.py fixture through CoverageProvider', async () => {
   const { readFile } = await import('node:fs/promises');

@@ -53,12 +53,19 @@ export class MultipleCoverageProvider implements CoverageProvider {
       } catch (error) {
         signal?.throwIfAborted();
         const budget = error instanceof Error && /budget/.test(error.message);
+        const code = typeof error === 'object' && error && 'code' in error && typeof error.code === 'string' ? error.code : undefined;
+        const unavailable = code !== undefined && ['ENOENT', 'ENOTDIR', 'EACCES', 'EPERM'].includes(code);
         // A failed read consumes its reservation; repeated failing reports cannot bypass aggregate limits.
         remaining -= reservation - reportBytes;
-        reports.push({ ...summary, bytes: reportBytes, status: budget ? 'truncated' : 'unsupported', diagnostics: [budget ? 'Coverage budget exhausted' : 'Coverage input invalid, unavailable, or unsafe'] });
+        reports.push({ ...summary, bytes: reportBytes, status: budget ? 'truncated' : unavailable ? 'unavailable' : 'unsupported', diagnostics: [budget ? 'Coverage budget exhausted' : unavailable ? 'Coverage input unavailable' : 'Coverage input invalid or unsafe'] });
       }
     }
     if (!reports.length) return { status: 'unavailable', reason: 'No coverage reports provided', reports };
+    if (!reports.some((report) => report.status === 'available')) {
+      const status = reports.some((report) => report.status === 'truncated') ? 'truncated' : reports.some((report) => report.status === 'unsupported') ? 'unsupported' : 'unavailable';
+      const reason = status === 'truncated' ? 'All coverage reports failed or exceeded a budget' : status === 'unsupported' ? 'All coverage reports were invalid or unsafe' : 'All coverage reports were unavailable';
+      return { status, reason, reports };
+    }
     for (const report of reports) {
       if (report.status !== 'available' || report.freshness !== 'matching' || report.diagnostics.some((value) => value !== 'Duplicate report ignored')) diagnostics.push('Report incomplete, stale, unverifiable, or diagnostic');
     }

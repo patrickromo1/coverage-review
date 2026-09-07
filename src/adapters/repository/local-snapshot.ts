@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { lstat, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdtemp, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -50,12 +50,77 @@ export async function captureLocalReview(root: string, mode: 'staged' | 'unstage
       return { mode: match[1]!, oid: match[2]!, path };
     });
   };
+  const readWorkingSymlink = async (path: string): Promise<Buffer | undefined> => {
+    const canonicalRoot = await realpath(root);
+    const parts = path.split('/');
+    let current = canonicalRoot;
+    const parents: Array<{ path: string; dev: bigint; ino: bigint }> = [];
+    for (const part of parts.slice(0, -1)) {
+      current = join(current, part);
+      let named;
+      try { named = await lstat(current, { bigint: true }); }
+      catch (error) { if (typeof error === 'object' && error && 'code' in error && error.code === 'ENOENT') return undefined; throw error; }
+      if (named.isSymbolicLink()) throw new Error('Symbolic link parent is unsupported');
+      parents.push({ path: current, dev: named.dev, ino: named.ino });
+    }
+    const leaf = join(canonicalRoot, path);
+    let before;
+    try { before = await lstat(leaf, { bigint: true }); }
+    catch (error) { if (typeof error === 'object' && error && 'code' in error && error.code === 'ENOENT') return undefined; throw error; }
+    if (!before.isSymbolicLink()) return undefined;
+    const target = await readlink(leaf, { encoding: 'buffer' });
+    const after = await lstat(leaf, { bigint: true });
+    for (const parent of parents) {
+      const named = await lstat(parent.path, { bigint: true });
+      if (named.isSymbolicLink() || named.dev !== parent.dev || named.ino !== parent.ino) throw new Error('Symbolic link parent changed during capture');
+    }
+    if (!after.isSymbolicLink() || before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+      throw new Error('Symbolic link changed during capture');
+    }
+    return target;
+  };
+  const charge = (content: Buffer) => {
+    bytes += content.length;
+    if (content.length > 32 * 1024 || bytes > 32 * 1024 * 1024) throw new Error('Snapshot byte budget exhausted');
+  };
   const make = async (records: ReturnType<typeof entries>, working: boolean): Promise<Snapshot> => {
     const map: Snapshot = new Map();
     for (const entry of records) {
       check();
+      if (entry.mode === '120000') {
+        const content = working ? await readWorkingSymlink(entry.path) : await git(['cat-file', 'blob', entry.oid], root, 32 * 1024 + 1);
+        if (content === undefined) {
+          const named = await lstat(join(root, entry.path)).catch((error: unknown) => {
+            if (typeof error === 'object' && error && 'code' in error && error.code === 'ENOENT') return undefined;
+            throw error;
+          });
+          if (!named) continue;
+          if (!named.isFile()) throw new Error('Tracked symbolic link changed to an unsupported file type');
+          const replacement = await readBoundedFile(root, entry.path, 32 * 1024, controller.signal);
+          charge(replacement);
+          const mode = (named.mode & 0o111) ? '100755' : '100644';
+          map.set(entry.path, { mode, digest: hash(replacement), read: replacement.includes(0) || !Buffer.from(replacement.toString('utf8')).equals(replacement) ? { status: 'binary', reason: 'Snapshot contains NUL bytes' } : { status: 'available', content: replacement.toString('utf8') } });
+          continue;
+        }
+        charge(content);
+        map.set(entry.path, { mode: entry.mode, digest: hash(content), read: { status: 'unsupported', reason: 'Symbolic link snapshot entry is not followed' } });
+        continue;
+      }
+      if (entry.mode === '160000') {
+        let digest = entry.oid;
+        if (working) {
+          let named;
+          try { named = await lstat(join(root, entry.path)); }
+          catch (error) { if (typeof error === 'object' && error && 'code' in error && error.code === 'ENOENT') continue; throw error; }
+          if (!named.isDirectory()) throw new Error('Tracked submodule changed to an unsupported file type');
+          const state = await git(['diff', '--raw', '-z', '--ignore-submodules=none', '--', entry.path]);
+          if (state.length) digest = hash(Buffer.concat([Buffer.from(entry.oid), state]));
+        }
+        map.set(entry.path, { mode: entry.mode, digest, read: { status: 'unsupported', reason: 'Submodule snapshot entry is not followed' } });
+        continue;
+      }
       if (!['100644', '100755'].includes(entry.mode)) {
-        map.set(entry.path, { mode: entry.mode, digest: entry.oid, read: { status: 'unsupported', reason: 'Symlink or special snapshot entry is not followed' } }); continue;
+        throw new Error('Unsupported snapshot entry mode');
       }
       let content: Buffer;
       let fileMode = entry.mode;
@@ -66,8 +131,7 @@ export async function captureLocalReview(root: string, mode: 'staged' | 'unstage
           throw new Error('Tracked working-tree capture failed (unsafe, changed, unavailable, or oversized file)');
         }
       } else content = await git(['cat-file', 'blob', entry.oid], root, 32 * 1024 + 1);
-      bytes += content.length;
-      if (content.length > 32 * 1024 || bytes > 32 * 1024 * 1024) throw new Error('Snapshot byte budget exhausted');
+      charge(content);
       map.set(entry.path, { mode: fileMode, digest: hash(content), read: content.includes(0) || !Buffer.from(content.toString('utf8')).equals(content) ? { status: 'binary', reason: 'Snapshot contains NUL bytes' } : { status: 'available', content: content.toString('utf8') } });
     }
     return map;

@@ -74,6 +74,23 @@ it('preserves staged symlinks as unsupported without following targets', async (
   expect(await captured.repository.readSource(captured.headSha, 'link.ts')).toMatchObject({ status: 'unsupported' });
   await expect(captured.diff.getFileDiff(captured.baseSha, captured.headSha, 'link.ts')).rejects.toThrow('unavailable');
 });
+it('captures changed and deleted tracked symlinks without following their targets', async () => {
+  await symlink('one', join(root, 'link.ts')); await git('add', 'link.ts'); await git('commit', '-qm', 'add link');
+  await rm(join(root, 'link.ts')); await symlink('two', join(root, 'link.ts'));
+  const changed = await captureLocalReview(root, 'unstaged');
+  expect((await changed.diff.compare(changed.baseSha, changed.headSha)).files).toEqual([{ path: 'link.ts', status: 'modified' }]);
+  expect(await changed.repository.readSource(changed.headSha, 'link.ts')).toMatchObject({ status: 'unsupported' });
+  await rm(join(root, 'link.ts'));
+  const deleted = await captureLocalReview(root, 'unstaged');
+  expect((await deleted.diff.compare(deleted.baseSha, deleted.headSha)).files).toEqual([{ path: 'link.ts', status: 'deleted' }]);
+});
+it('captures a tracked symlink replaced by a regular file as a type change', async () => {
+  await symlink('one', join(root, 'link.ts')); await git('add', 'link.ts'); await git('commit', '-qm', 'add link');
+  await rm(join(root, 'link.ts')); await writeFile(join(root, 'link.ts'), 'replacement\n');
+  const captured = await captureLocalReview(root, 'unstaged');
+  expect((await captured.diff.compare(captured.baseSha, captured.headSha)).files).toEqual([{ path: 'link.ts', status: 'type-changed' }]);
+  expect(await captured.repository.readSource(captured.headSha, 'link.ts')).toMatchObject({ status: 'available', content: 'replacement\n' });
+});
 it('retries a concurrent edit once and rejects continuously changing captures', async () => {
   let calls = 0;
   const captured = await captureLocalReview(root, 'unstaged', undefined, async () => { if (calls++ === 0) await writeFile(join(root, 'a.ts'), 'changed\n'); });
