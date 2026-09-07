@@ -16,19 +16,24 @@ const relationship = z.discriminatedUnion('type', [
 ]);
 
 const provenance = z.strictObject({
-  format: z.literal('lcov'), reportPath: z.string().min(1), commitSha: z.string().min(1).optional(),
+  format: z.enum(['lcov', 'coverage-py-json', 'multiple']), reportPath: z.string().min(1), commitSha: z.string().min(1).optional(),
   freshness: z.enum(['matching', 'stale', 'unverifiable']),
 });
 
+const reports = z.array(z.strictObject({
+  format: z.enum(['lcov', 'coverage-py-json']), root: path.optional(), commitSha: z.string().regex(/^(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/).optional(),
+  freshness: z.enum(['matching', 'stale', 'unverifiable']), status: z.enum(['available', 'unsupported', 'truncated', 'unavailable']),
+  diagnostics: z.array(z.string()), bytes: z.number().int().nonnegative(), digest: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+})).max(20).optional();
 export const CoverageEvidenceSchema = z.strictObject({
-  schemaVersion: z.literal('1'),
+  schemaVersion: z.enum(['1', '2']),
   comparison: z.strictObject({ baseSha: z.string().min(1), headSha: z.string().min(1) }),
   testDiscovery: z.strictObject({
     status: z.enum(['available', 'truncated', 'unsupported']), diagnostics: z.array(z.string()),
   }),
   coverageReport: z.discriminatedUnion('status', [
-    z.strictObject({ status: z.literal('available'), provenance, diagnostics: z.array(z.string()) }),
-    z.strictObject({ status: z.enum(['unavailable', 'unsupported', 'truncated']), reason: z.string().min(1), provenance: provenance.optional() }),
+    z.strictObject({ status: z.literal('available'), provenance, diagnostics: z.array(z.string()), reports }),
+    z.strictObject({ status: z.enum(['unavailable', 'unsupported', 'truncated']), reason: z.string().min(1), provenance: provenance.optional(), reports }),
   ]),
   files: z.array(z.strictObject({
     path,

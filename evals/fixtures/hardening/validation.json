@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1",
+  "kind": "scripted-harness-validation",
+  "checks": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "test": {
+      "passed": 187,
+      "files": 25
+    },
+    "build": "passed",
+    "evalOffline": "passed",
+    "actionSmoke": "passed",
+    "benchmarkHardening": "passed",
+    "cliHelp": "passed"
+  },
+  "aggregate": {
+    "truePositives": 6,
+    "falsePositives": 0,
+    "falseNegatives": 0,
+    "negativeOpportunities": 7,
+    "falseAlarms": 0,
+    "trueNegatives": 2,
+    "unresolvedNegatives": 5,
+    "correctLevels": 6,
+    "precision": 1,
+    "recall": 1,
+    "falsePositiveRate": 0,
+    "falseNegativeRate": 0,
+    "testLevelAccuracy": 1,
+    "runs": 13,
+    "failedRuns": 0,
+    "partialRuns": 6,
+    "rejectedFindings": 0,
+    "verdicts": {
+      "adequate": 2,
+      "needs-review": 5,
+      "needs-tests": 6
+    }
+  },
+  "paidCalls": false,
+  "realPublishing": false
+}

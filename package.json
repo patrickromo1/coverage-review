@@ -21,7 +21,8 @@
     "eval:offline": "tsx src/evals/main.ts --offline",
     "eval:live": "tsx src/evals/main.ts --live",
     "github": "tsx src/github/main.ts",
-    "action:smoke": "vitest run tests/integration/github-action.test.ts"
+    "action:smoke": "vitest run tests/integration/github-action.test.ts",
+    "benchmark:hardening": "tsx src/benchmarks/hardening.ts"
   },
   "dependencies": {
     "@openai/agents": "^0.17.0",

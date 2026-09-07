@@ -49,11 +49,11 @@ it('reserves cumulative read budget before concurrent IO and bounds tool calls',
 it('preserves missing, truncated, invalid, and unavailable states without exception payloads', async () => {
   const { session, read } = await setup();
   read.mockResolvedValueOnce({ status: 'missing', reason: 'PRIVATE_REASON' });
-  expect(await session.tools.inspect(args)).toMatchObject({ status: 'missing', content: 'Committed evidence is missing.' });
+  expect(await session.tools.inspect(args)).toMatchObject({ status: 'missing', content: 'Snapshot evidence is missing.' });
   read.mockResolvedValueOnce({ status: 'available', content: 'one\ntwo\nthree' });
   expect(await session.tools.inspect({ ...args, lineCount: 1 })).toMatchObject({ status: 'truncated', content: '1: one' });
   read.mockRejectedValueOnce(new Error('PRIVATE_EXCEPTION'));
-  expect(await session.tools.inspect(args)).toMatchObject({ status: 'unavailable', content: 'Committed evidence is unavailable.' });
+  expect(await session.tools.inspect(args)).toMatchObject({ status: 'unavailable', content: 'Snapshot evidence is unavailable.' });
   read.mockResolvedValueOnce({ status: 'available', content: 4 } as never);
   await expect(session.tools.inspect(args)).rejects.toThrow();
   expect(session.stats().incomplete).toBe(true);

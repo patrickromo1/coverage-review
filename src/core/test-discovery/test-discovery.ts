@@ -23,6 +23,7 @@ export interface TestDiscoveryResult {
 export interface TestDiscoveryRequest {
   readonly repository: Repository;
   readonly headSha: string;
+  readonly signal?: AbortSignal;
   readonly sourcePaths: readonly string[];
 }
 

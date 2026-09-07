@@ -36,7 +36,7 @@ it('runs all offline semantic fixtures without network and retains conservative 
   const fetch = vi.fn(() => { throw new Error('Network forbidden'); }); vi.stubGlobal('fetch', fetch);
   const suite = await loadSemanticSuite();
   const report = await runSemanticSuite(suite, { ids: suite.fixtures.map((fixture) => fixture.id), repeats: 1, concurrency: 2, mode: 'offline' });
-  expect(report.aggregate).toMatchObject({ runs: 10, truePositives: 5, falsePositives: 0, falseNegatives: 0, partialRuns: 4 });
+  expect(report.aggregate).toMatchObject({ runs: 13, truePositives: 6, falsePositives: 0, falseNegatives: 0, partialRuns: 6 });
   expect(report.cases.find((entry) => entry.fixtureId === 'missing-evidence')?.result.verdict).toBe('needs-review');
   expect(fetch).not.toHaveBeenCalled();
 });

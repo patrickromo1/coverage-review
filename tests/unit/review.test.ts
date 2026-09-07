@@ -189,7 +189,7 @@ it('marks missing file coverage, absent measurements, uncovered branches, unsupp
     if (variant === 0) file.coverage = { status: 'missing', reason: 'File omitted' };
     if (variant === 1) file.coverage = { status: 'measured', freshness: 'matching', lines: [], branches: [] };
     if (variant === 2 && file.coverage.status === 'measured') file.coverage.branches.push({ line: 1, block: '0', branch: '0', hits: null, covered: null });
-    if (variant === 3) file.path = 'source.py';
+    if (variant === 3) file.path = 'source.rs';
     if (variant === 4) evidence.testDiscovery.diagnostics.push('Could not read a test');
     if (variant === 5 && file.diff.status === 'available') file.diff.binary = true;
     if (variant === 6) file.candidateTests[0]!.level = 'e2e';

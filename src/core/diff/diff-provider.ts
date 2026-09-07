@@ -15,7 +15,8 @@ export interface GitComparison {
 
 /** Substitute an in-memory implementation for eval fixtures. */
 export interface DiffProvider {
-  compare(baseSha: string, headSha: string): Promise<GitComparison>;
+  stats?(): { requests: number; bytes: number; comparisons: number; cacheHits: number };
+  compare(baseSha: string, headSha: string, signal?: AbortSignal): Promise<GitComparison>;
   /** Path must identify a changed file in this exact comparison. */
-  getFileDiff(baseSha: string, headSha: string, path: string): Promise<string>;
+  getFileDiff(baseSha: string, headSha: string, path: string, signal?: AbortSignal): Promise<string>;
 }

@@ -12,7 +12,7 @@ it('exports nothing by default and excludes sensitive sentinel strings from meta
   await executeReview('base', 'head', deps, { mode: 'scripted', propose: async (request) => ({ ...proposal(request), summary: 'PRIVATE_MODEL_OUTPUT' }) }, {}, trace);
   const serialized = JSON.stringify(spans);
   expect(serialized).not.toMatch(/PRIVATE|a\.ts|\/private\/report|export const/);
-  expect(spans.map((span) => span.name)).toEqual(['provider', 'evidence', 'agent', 'review']);
+  expect(spans.map((span) => span.name)).toEqual(['provider', 'discovery', 'coverage', 'collection', 'evidence', 'agent', 'validation', 'review']);
   expect(new Set(spans.map((span) => span.traceId)).size).toBe(1);
 });
 it('requires a separate sensitive-content opt-in and makes exporter failure non-fatal', async () => {
@@ -41,6 +41,6 @@ it('emits error spans for failed evidence and agent stages', async () => {
   const agentSpans: TraceSpan[] = [];
   await executeReview('base', 'head', dependencies(), { mode: 'scripted', propose: async () => { throw new Error('PRIVATE_AGENT_FAILURE'); } }, {},
     new ReviewTrace({ exportSpan: (span) => { agentSpans.push(span); } }));
-  expect(agentSpans.map(({ name, status }) => [name, status])).toEqual([['evidence', 'ok'], ['agent', 'error'], ['review', 'error']]);
+  expect(agentSpans.map(({ name, status }) => [name, status])).toEqual([['discovery', 'ok'], ['coverage', 'ok'], ['collection', 'ok'], ['evidence', 'ok'], ['agent', 'error'], ['review', 'error']]);
   expect(JSON.stringify([...evidenceSpans, ...agentSpans])).not.toContain('PRIVATE');
 });

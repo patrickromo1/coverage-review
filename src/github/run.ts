@@ -13,7 +13,12 @@ import { ReviewLimitsSchema } from '../agent/review-agent.js';
 import { ScriptedReviewAgent } from '../agent/scripted-review-agent.js';
 import { executeReview } from '../core/review/execute-review.js';
 import { ReviewResultSchema, type ReviewResult } from '../core/review/result.js';
-import { TypeScriptTestDiscovery } from '../core/test-discovery/typescript-test-discovery.js';
+import { SupportedTestDiscovery } from '../core/test-discovery/supported-test-discovery.js';
+import { ReviewConfigSchema } from '../core/config/review-config.js';
+import { MultipleCoverageProvider } from '../adapters/coverage/multiple-coverage-provider.js';
+import { readBoundedFile } from '../adapters/files/bounded-file.js';
+import { parseBoundedJson } from '../core/coverage/bounded-json.js';
+import { ReviewTrace } from '../core/review/trace.js';
 import { writeActionOutputs } from './actions-output.js';
 import { CiReviewArtifactSchema } from './artifact.js';
 import { publishCheck } from './checks.js';
@@ -27,6 +32,7 @@ const execute = promisify(execFile);
 export const githubUsage = `Usage: coverage-review-github (--offline-review <proposal.json> | --review --provider openai --model <model-id>) [options]
 
 Options:
+  --config <path>               Bounded data-only workspace config for packages and multiple reports
   --lcov <path>                 LCOV produced by an earlier workflow step
   --coverage-commit <SHA>      Full commit SHA represented by LCOV
   --result <path>               JSON artifact path within GITHUB_WORKSPACE (default: coverage-review-result.json)
@@ -40,6 +46,7 @@ Fork pull requests permit explicit offline scripted mode only; live provider mod
 `;
 
 export interface GitHubRunDependencies {
+  readonly trace?: ReviewTrace;
   readonly client?: GitHubClient;
   readonly sdkExecute?: SdkExecute;
   readonly resolveMergeBase?: (workspace: string, baseSha: string, headSha: string, signal: AbortSignal) => Promise<string>;
@@ -98,10 +105,12 @@ async function comparisonBase(context: GitHubReviewContext, client: GitHubClient
 export async function runGitHubAction(args: string[], environment: NodeJS.ProcessEnv = process.env, dependencies: GitHubRunDependencies = {}) {
   const { values } = parseArgs({ args, options: {
     'offline-review': { type: 'string' }, review: { type: 'boolean' }, provider: { type: 'string' }, model: { type: 'string' },
-    lcov: { type: 'string' }, 'coverage-commit': { type: 'string' }, result: { type: 'string', default: 'coverage-review-result.json' },
+    config: { type: 'string' }, lcov: { type: 'string' }, 'coverage-commit': { type: 'string' }, result: { type: 'string', default: 'coverage-review-result.json' },
     'publish-check': { type: 'boolean' }, 'timeout-ms': { type: 'string' }, help: { type: 'boolean', short: 'h' },
   }, strict: true, allowPositionals: false });
   if (values.help) return { help: githubUsage } as const;
+  if (values.config && (values.lcov || values['coverage-commit'])) throw new Error('--config cannot combine with legacy coverage flags');
+  const trace = dependencies.trace ?? new ReviewTrace();
   const workspace = environment.GITHUB_WORKSPACE;
   const eventPath = environment.GITHUB_EVENT_PATH;
   const eventName = environment.GITHUB_EVENT_NAME;
@@ -126,6 +135,7 @@ export async function runGitHubAction(args: string[], environment: NodeJS.Proces
   else {
     try {
       base = await comparisonBase(context, client, workspace, githubSignal, dependencies.resolveMergeBase ?? localMergeBase);
+      const reviewConfig = values.config ? ReviewConfigSchema.parse(parseBoundedJson((await readBoundedFile(workspace, values.config, 65_536, githubSignal)).toString('utf8'), 65_536)) : undefined;
       const lcovPath = values.lcov ? await resolveWorkspaceInput(workspace, values.lcov) : undefined;
       let agent: ReviewAgent;
       if (offline) {
@@ -136,20 +146,22 @@ export async function runGitHubAction(args: string[], environment: NodeJS.Proces
         agent = new OpenAIReviewAgent(config, dependencies.sdkExecute ?? (async (request) => (await import('../agent/openai/sdk-execution.js')).executeOpenAISdk(request)));
       }
       result = await executeReview(base, context.headSha!, {
-        diff: new LocalGitDiff(workspace), repository: new LocalRepository(workspace), testDiscovery: new TypeScriptTestDiscovery(),
-        coverage: lcovPath ? new LcovCoverageProvider(workspace, lcovPath, values['coverage-commit']) : new UnavailableCoverageProvider(),
-      }, agent, { ...reviewLimits, executionMode: 'github' });
+        diff: new LocalGitDiff(workspace), repository: new LocalRepository(workspace), testDiscovery: new SupportedTestDiscovery(reviewConfig),
+        coverage: reviewConfig ? new MultipleCoverageProvider(workspace, reviewConfig.reports) : lcovPath ? new LcovCoverageProvider(workspace, lcovPath, values['coverage-commit']) : new UnavailableCoverageProvider(),
+      }, agent, { ...reviewLimits, executionMode: 'github' }, trace);
     } catch {
       result = skippedResult(context, 'GitHub comparison or bounded workspace input validation failed.', base);
     }
   }
   if (!result) throw new Error('GitHub review did not produce a result');
+  const publishingStarted = Date.now();
   let publishing: PublishingStatus = { status: 'not-requested' };
   if (values['publish-check']) {
     publishing = !token && !dependencies.client ? { status: 'failed', reason: 'missing-token' }
       : context.kind !== 'pull-request' ? { status: 'failed', reason: 'invalid-response' }
       : await publishCheck(client!, context, result, githubSignal);
   }
+  await trace.emit('publishing', publishingStarted, publishing.status === 'failed' ? 'error' : 'ok', { findings: publishing.status === 'published' ? publishing.annotationsPublished : 0 });
   const artifact = CiReviewArtifactSchema.parse({ schemaVersion: '1', kind: 'coverage-review-result', context,
     ...(base ? { comparisonBaseSha: base } : {}), review: result, publishing });
   const resultPath = await writeAtomicWorkspaceJson(workspace, values.result!, artifact);
